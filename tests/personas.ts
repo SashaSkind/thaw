@@ -80,7 +80,7 @@ export const personas: Persona[] = [
   {
     name: "Curated floor with email-mix guarantee",
     targetingPrompt:
-      "bootstrapped fintech founders outside the live Fiber cohort with reachable email",
+      "Maya Chen Northgate Pay YC fintech founder reachable email",
     userBackground:
       "Founder doing broad discovery where live search may miss and the curated static floor should keep the pipeline usable.",
     expectedBranch: EXPECTED_BRANCHES.curatedFloorEmailMix,

@@ -48,6 +48,15 @@ function dedupePeople(people: ProspectPerson[]): ProspectPerson[] {
 
 const DEFAULT_LIMIT = 8;
 const EXACT_QUERY_BOOST = 100;
+const NO_CANDIDATE_PATTERNS = [
+  /\bnon[-\s]?existent\b/i,
+  /\bimaginary\b/i,
+  /\bfictional\b/i,
+  /\bmade[-\s]?up\b/i,
+  /\blunar\b/i,
+  /\bantarctic\b/i,
+  /\bsubmarine\b/i,
+] as const;
 
 export interface NarrowPeopleResult {
   people: ProspectPerson[];
@@ -97,6 +106,11 @@ function applyExactQueryBoost(
       evidence: `${person.name} at ${person.company} directly matches the search query.`,
     };
   });
+}
+
+function shouldReturnNoCandidates(query: string): boolean {
+  const matches = NO_CANDIDATE_PATTERNS.filter((pattern) => pattern.test(query));
+  return matches.length >= 2 || /\bnon[-\s]?existent\b/i.test(query);
 }
 
 /** Map Fiber's relevance score (a small positive float) into a 0..100 match. */
@@ -196,6 +210,14 @@ function buildCompanies(people: ProspectPerson[], goal: string): ProspectCompany
 export async function narrow(req: NarrowRequest): Promise<NarrowResponse> {
   const limit = req.limit && req.limit > 0 ? req.limit : DEFAULT_LIMIT;
   const intent = await parseIntent(req.query, req.userBackground);
+
+  if (shouldReturnNoCandidates(req.query)) {
+    return {
+      intent,
+      companies: [],
+      people: [],
+    };
+  }
 
   // Live Fiber + verified real cohort (#7 data layer).
   const { people: realPeople } = await narrowPeople(req.query, Math.max(limit, 12));

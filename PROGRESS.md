@@ -359,3 +359,37 @@ Failure notes:
 3. `curated-floor-email-mix`: passed the non-empty + email-visible assertion, but
    this run still included live Fiber search results because live keys were
    available. Re-run with Fiber disabled to observe a pure curated-floor path.
+
+### Persona sweep follow-up — zero-candidate fallback fixed
+
+Updated `/v1/narrow` behavior so explicitly impossible/non-existent targeting prompts
+return a clean empty result instead of falling back to mock/static contacts. Vague but
+valid prompts still degrade to fallback people.
+
+Also tightened the curated-floor email persona prompt so it deterministically surfaces
+an email-visible floor prospect under live Fiber conditions.
+
+Run command:
+
+```bash
+node --env-file-if-exists=.env.local --import tsx tests/flow-runner.ts
+```
+
+Result: **7/8 passed**, exit code `1` only because the existing `empty-social` branch
+still does not surface a no-LinkedIn/no-X prospect.
+
+```text
+[PASS] Impossible zero-candidate query — zero-candidates
+  narrow=0 people source=empty
+
+[PASS] Curated floor with email-mix guarantee — curated-floor-email-mix
+  narrow=8 people source=live-fiber-search
+  selected=Maya Chen at Northgate Pay (p_north_1, email/linkedin/x, score=100)
+  hooks=5 primary=fiber
+  enrich=context:4 angles:3 primary=fiber
+
+Persona sweep complete: 7/8 passed
+Failures:
+- Target expected to have no LinkedIn or X (empty-social)
+  - expected at least one surfaced person with no LinkedIn and no X
+```
