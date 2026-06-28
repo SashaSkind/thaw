@@ -14,11 +14,13 @@ import { ProspectResults } from "./components/ProspectResults";
 import { PersonDetail } from "./components/PersonDetail";
 import { HookCapture } from "./components/HookCapture";
 import { DraftView } from "./components/DraftView";
+import { HANDOFF_SESSION_KEY } from "../start/StartClient";
 import type {
   HookCandidate,
   NarrowResponse,
   ProspectPerson,
 } from "@/lib/types";
+import type { SenderProfile } from "@/lib/coldreach-integration";
 
 type Stage = "target" | "narrowing" | "results" | "detail" | "hooks" | "draft";
 
@@ -86,6 +88,21 @@ export default function DemoPage() {
   const [confirmedHook, setConfirmedHook] = useState("");
   const [recentContext, setRecentContext] = useState<string[]>([]);
   const [angles, setAngles] = useState<string[]>([]);
+  const [sender, setSender] = useState<SenderProfile | null>(null);
+
+  // Pick up the ColdReach handoff session (session-only; set by /start).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(HANDOFF_SESSION_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { profile?: SenderProfile };
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (parsed.profile) setSender(parsed.profile);
+      }
+    } catch {
+      // ignore malformed session storage
+    }
+  }, []);
 
   const runNarrow = async (goal: string) => {
     setStage("narrowing");
@@ -190,7 +207,12 @@ export default function DemoPage() {
             <small>broad goal → person → hook → draft</small>
           </div>
         </div>
-        <ThemeToggle />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {sender?.name && (
+            <span className="faint">via ColdReach · {sender.name}</span>
+          )}
+          <ThemeToggle />
+        </div>
       </div>
 
       <Stepper stage={stage} />
@@ -247,6 +269,7 @@ export default function DemoPage() {
           confirmedHook={confirmedHook}
           angles={angles}
           recentContext={recentContext}
+          sender={sender}
           onRestart={restart}
         />
       )}

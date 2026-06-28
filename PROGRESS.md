@@ -110,6 +110,62 @@ EXIT=0
 
 ---
 
+## Overnight test harness (branch `overnight/test-harness`)
+
+Additive-only, one commit per task, on top of the PR #8 handoff integration. No
+edits to `lib/coldreach-integration.ts`, `app/start`, `app/api/integration/*`,
+`lib/draft.ts`, or the `/v1` service. Blocked/ambiguous items are tagged
+`// BLOCKED:` and logged here.
+
+### Task 1 — Commit the mock ColdReach — DONE
+
+`mocks/coldreach/server.mjs` + `mocks/coldreach/README.md`. Dependency-free
+(HS256 via `node:crypto`), implements docs/integration.md §2:
+`GET /api/external/profile`, `POST /api/external/pending-draft`, and the
+`GET /chat/{id}?pending=1` render stub (Send for email / Copy for linkedin·x),
+plus `GET /api/external/handoff` and a `/mint` test helper. Verified standalone:
+valid token → profile; missing token → 401; pending-draft → `{ draftId, deepLink }`;
+expired token → 401.
+
+### Task 2 — Automated integration tests — DONE
+
+`scripts/integration-handoff.test.mjs` (new; dependency-free, uses the mock
+in-process) + `npm run test:integration`. Drives the full handoff against the
+running Thaw server: token → session → profile → pending-draft → deepLink, plus
+invalid-token 401 and no-session 401. Also added `npm run mock:coldreach`.
+
+Prereq (same model as `scripts/smoke.ts`): Thaw dev server running with the same
+`INTEGRATION_SHARED_SECRET` and `COLDREACH_URL` pointing at the mock port; the
+test starts the mock or reuses one already on the port. Result:
+
+```
+  [PASS] minted handoff token
+  [PASS] session: 200 + ok
+  [PASS] session: identity carried — name=Jordan Lee
+  [PASS] profile: resume/comments/emailClosing present
+  [PASS] session: httpOnly handoff cookie set
+  [PASS] pending-draft: 200 + deepLink
+  [PASS] deepLink: ColdReach renders stored draft
+  [PASS] invalid token -> session 401
+  [PASS] no session -> pending-draft 401
+ALL CHECKS PASSED
+```
+
+### Task 3 — Failure UX (new components/states only) — DONE
+
+`app/handoff-status/HandoffStatus.tsx` (client) + `app/handoff-status/page.tsx`
+(preview/target route). Three states with a retry action:
+`coldreach-unreachable`, `token-expired` (states the 15-min TTL), and a generic
+`error`. Reuses existing CSS classes; no globals.css change.
+
+NOTE (per constraints): these are ADDITIVE, standalone surfaces and are **not
+wired into the working /start flow** — wiring would require editing `app/start`,
+which was explicitly out of scope for this branch. They are ready to wire (e.g.
+the flow can redirect to `/handoff-status?state=token-expired`). Verified all
+three render in the browser at `/handoff-status?state=...`.
+
+---
+
 ## Integration branch (`integration/final`) — reconcile PRs #7 + #8 + #9 + #10
 
 Cut from `main`. One commit per step. Target = v2 PRD architecture: stateless
