@@ -46,6 +46,8 @@ export interface ProspectPerson {
   companyId: string;
   location?: string;
   email?: string; // present only if found
+  emailStatus?: "verified" | "guessed" | "unavailable"; // additive (PR #9)
+  emailSource?: "fiber" | "apollo"; // additive (PR #9)
   linkedinUrl?: string;
   xUrl?: string;
   evidence: string; // why this person matches the goal

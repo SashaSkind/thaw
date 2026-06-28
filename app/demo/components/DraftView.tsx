@@ -1,25 +1,24 @@
 "use client";
 
 /**
- * Step 5 — draft view. The service returns INGREDIENTS (confirmed hook + angles +
- * recent context); ColdReach owns the actual drafting + send. For the demo we
- * render the 3-tone handoff locally and run in DEMO MODE (no real outbound send).
- *
- * PATTERN FROM coldreach/* three-tone draft UI — dedupe post-hackathon.
+ * Step 5 — draft view. Thaw writes the FINISHED email (subject + body incl. the
+ * sender's closing) using the sender profile fetched at handoff; the Send action
+ * POSTs that finished draft to ColdReach (pending draft) and deep-links the user
+ * back to ColdReach to send from their own authenticated session. Thaw never
+ * touches Gmail. (docs/integration.md §3.3-§3.5)
  */
 
 import { useMemo, useState } from "react";
 import type { Channel, ProspectPerson } from "@/lib/types";
-
-const TONES = ["casual", "professional", "efficient"] as const;
-type Tone = (typeof TONES)[number];
+import type { SenderProfile } from "@/lib/coldreach-integration";
+import { TONES, type Tone, composeFinishedDraft } from "@/lib/draft";
 
 function availableChannels(person: ProspectPerson): Channel[] {
   const channels: Channel[] = [];
   if (person.channels.email) channels.push("email");
   if (person.channels.linkedin) channels.push("linkedin");
   if (person.channels.x) channels.push("x");
-  return channels;
+  return channels.length > 0 ? channels : ["email"];
 }
 
 function channelLabel(channel: Channel): string {
@@ -28,71 +27,74 @@ function channelLabel(channel: Channel): string {
   return "X DM";
 }
 
-/**
- * Local stand-in for ColdReach's drafting. Renders a NATURAL message from the
- * ingredients — note it does NOT paste the suggested angles verbatim (those are
- * ColdReach's drafting input, shown separately); it uses the confirmed hook and
- * a short value line derived from the prospect. Tone changes the voice; channel
- * changes the format (email = subject + sign-off; DM = one tight line).
- */
-function composeDraft(
-  person: ProspectPerson,
-  confirmedHook: string,
-  tone: Tone,
-  channel: Channel,
-): string {
-  const firstName = person.name.split(" ")[0];
-  const hook = confirmedHook.replace(/\.$/, "");
-  const hookLower = hook.charAt(0).toLowerCase() + hook.slice(1);
-
-  const opener: Record<Tone, string> = {
-    casual: `Hey ${firstName} — noticed ${hookLower}, so I figured I'd reach out.`,
-    professional: `Hi ${firstName}, I came across your work at ${person.company} — and ${hookLower}.`,
-    efficient: `${firstName} — ${hook}.`,
-  };
-  const body: Record<Tone, string> = {
-    casual: `I'm working on something I think could genuinely help with what you're building. Open to swapping notes this week?`,
-    professional: `I'd love to share something relevant to what you're focused on at ${person.company}. Would you be open to a short conversation?`,
-    efficient: `Built something relevant to ${person.company}. Worth 10 minutes?`,
-  };
-  const signoff: Record<Tone, string> = {
-    casual: "Cheers!",
-    professional: "Best regards,",
-    efficient: "Thanks,",
-  };
-
-  if (channel === "email") {
-    const subject: Record<Tone, string> = {
-      casual: `quick idea for ${person.company}`,
-      professional: `A relevant note for ${firstName} at ${person.company}`,
-      efficient: `${person.company} — 10 min?`,
-    };
-    return `Subject: ${subject[tone]}\n\n${opener[tone]}\n\n${body[tone]}\n\n${signoff[tone]}\n— Sent via ColdReach`;
-  }
-
-  // LinkedIn / X DM: one tight line, no subject.
-  return `${opener[tone]} ${body[tone]}`;
-}
+type SendState =
+  | { status: "idle" }
+  | { status: "sending" }
+  | { status: "redirecting"; deepLink: string }
+  | { status: "error"; message: string };
 
 export function DraftView({
   person,
   confirmedHook,
   angles,
   recentContext,
+  sender,
   onRestart,
 }: {
   person: ProspectPerson;
   confirmedHook: string;
   angles: string[];
   recentContext: string[];
+  sender: SenderProfile | null;
   onRestart: () => void;
 }) {
   const channels = useMemo(() => availableChannels(person), [person]);
   const [tone, setTone] = useState<Tone>("professional");
-  const [channel, setChannel] = useState<Channel>(channels[0] ?? "email");
-  const [sent, setSent] = useState(false);
+  const [channel, setChannel] = useState<Channel>(channels[0]);
+  const [send, setSend] = useState<SendState>({ status: "idle" });
 
-  const draft = composeDraft(person, confirmedHook, tone, channel);
+  const draft = useMemo(
+    () => composeFinishedDraft({ person, confirmedHook, tone, channel, sender }),
+    [person, confirmedHook, tone, channel, sender],
+  );
+
+  const rendered = draft.subject
+    ? `Subject: ${draft.subject}\n\n${draft.body}`
+    : draft.body;
+
+  const handoff = async () => {
+    setSend({ status: "sending" });
+    try {
+      const res = await fetch("/api/integration/pending-draft", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          contact: {
+            name: person.name,
+            email: person.email,
+            company: person.company,
+            title: person.title,
+            linkedinUrl: person.linkedinUrl,
+            xUrl: person.xUrl,
+          },
+          channel,
+          subject: channel === "email" ? draft.subject : undefined,
+          body: draft.body,
+        }),
+      });
+      const data = (await res.json()) as { ok: boolean; deepLink?: string; reason?: string };
+      if (res.ok && data.ok && data.deepLink) {
+        setSend({ status: "redirecting", deepLink: data.deepLink });
+        window.location.assign(data.deepLink);
+        return;
+      }
+      setSend({ status: "error", message: data.reason ?? "Handoff failed." });
+    } catch {
+      setSend({ status: "error", message: "Network error reaching ColdReach." });
+    }
+  };
+
+  const sendLabel = channel === "email" ? "Send via ColdReach →" : "Save to ColdReach →";
 
   return (
     <div className="card">
@@ -104,7 +106,8 @@ export function DraftView({
         <h2>Draft handoff → ColdReach</h2>
         <div className="banner">
           <span className="dot" />
-          Demo mode — drafting only. No real outbound message is sent.
+          Thaw writes the finished message. ColdReach sends it from your own
+          inbox — Thaw never touches Gmail.
         </div>
       </div>
 
@@ -154,7 +157,13 @@ export function DraftView({
             </button>
           ))}
         </div>
-        <div className="draft-box">{draft}</div>
+        <div className="draft-box">{rendered}</div>
+        {!sender?.emailClosing && (
+          <p className="faint" style={{ marginTop: 6 }}>
+            Using a default closing — connect via ColdReach so your saved email
+            closing is woven in.
+          </p>
+        )}
       </div>
 
       {recentContext.length > 0 && (
@@ -169,15 +178,26 @@ export function DraftView({
       )}
 
       <div className="row">
-        <button className="btn" onClick={() => setSent(true)}>
-          Send (demo · to yourself)
+        <button
+          className="btn"
+          onClick={handoff}
+          disabled={send.status === "sending" || send.status === "redirecting"}
+        >
+          {send.status === "sending"
+            ? "Saving to ColdReach…"
+            : send.status === "redirecting"
+              ? "Redirecting…"
+              : sendLabel}
         </button>
       </div>
-      {sent && (
+
+      {send.status === "redirecting" && (
         <div className="toast">
-          ✓ Demo send simulated. In production, ColdReach sends this from your
-          own Gmail after your final review.
+          ✓ Saved to ColdReach — taking you there to send from your own inbox…
         </div>
+      )}
+      {send.status === "error" && (
+        <div className="toast">⚠ {send.message}</div>
       )}
     </div>
   );

@@ -6,13 +6,16 @@
  * result event. The client renders a step only once it arrives (no empty
  * bubbles) and shows tokens/steps as they stream in.
  *
+ * Data is REAL: the result comes from the live Fiber-backed `narrow()` (real
+ * people + parsed intent), not fabricated data. The live API call overlaps the
+ * narration animation.
+ *
  * PATTERN FROM coldreach/* streaming chat — dedupe post-hackathon. We use a raw
- * NDJSON ReadableStream (works with zero keys and is trivially reliable on
- * stage) rather than an LLM token stream, which is overkill for fixed narration.
+ * NDJSON ReadableStream (reliable on stage) rather than an LLM token stream.
  */
 
 import { guard } from "@/lib/http";
-import { rankCuratedPeople } from "@/lib/mock-data";
+import { narrow } from "@/lib/narrow";
 import type { NarrowResponse } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +32,7 @@ type StreamEvent = StepEvent | ResultEvent;
 
 const NARRATION_STEPS = [
   "Understanding your targeting goal…",
-  "Finding matching companies…",
+  "Searching live for matching people…",
   "Ranking people by fit…",
   "Checking contact channels (email / LinkedIn / X)…",
   "Preparing prospect cards…",
@@ -45,8 +48,13 @@ export async function POST(request: Request): Promise<Response> {
 
   let goal = "";
   try {
-    const body = (await request.json()) as { goal?: unknown };
-    goal = typeof body.goal === "string" ? body.goal : "";
+    const body = (await request.json()) as { goal?: unknown; query?: unknown };
+    goal =
+      typeof body.goal === "string"
+        ? body.goal
+        : typeof body.query === "string"
+          ? body.query
+          : "";
   } catch {
     // tolerate empty body; goal stays ""
   }
@@ -58,19 +66,15 @@ export async function POST(request: Request): Promise<Response> {
         controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       };
 
+      // Kick off the real Fiber-backed narrow while we narrate.
+      const narrowing = narrow({ query: goal || "fintech founders", limit: 8 });
+
       for (const text of NARRATION_STEPS) {
         send({ type: "step", text });
         await sleep(850);
       }
 
-      const people = rankCuratedPeople(goal);
-      // Conform to the real contract (lib/types.ts). The demo UI only renders
-      // `people`; intent/companies are kept contract-valid but minimal.
-      const result: NarrowResponse = {
-        intent: { rawQuery: goal },
-        companies: [],
-        people,
-      };
+      const result = await narrowing;
       send({ type: "result", data: result });
       controller.close();
     },

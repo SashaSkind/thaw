@@ -35,7 +35,7 @@ const TEST_PEOPLE: FiberPerson[] = [
   {
     name: "Henrique Dubugras",
     company: "Brex",
-    linkedinUrl: "https://www.linkedin.com/in/henrique-dubugras",
+    linkedinUrl: "https://www.linkedin.com/in/henriquedubugras",
   },
   {
     name: "Zach Perret",

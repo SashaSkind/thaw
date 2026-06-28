@@ -107,3 +107,165 @@ EXIT=0
 ```
 
 `npm run typecheck` + `npm run lint` green.
+
+---
+
+## Overnight test harness (branch `overnight/test-harness`)
+
+Additive-only, one commit per task, on top of the PR #8 handoff integration. No
+edits to `lib/coldreach-integration.ts`, `app/start`, `app/api/integration/*`,
+`lib/draft.ts`, or the `/v1` service. Blocked/ambiguous items are tagged
+`// BLOCKED:` and logged here.
+
+### Task 1 — Commit the mock ColdReach — DONE
+
+`mocks/coldreach/server.mjs` + `mocks/coldreach/README.md`. Dependency-free
+(HS256 via `node:crypto`), implements docs/integration.md §2:
+`GET /api/external/profile`, `POST /api/external/pending-draft`, and the
+`GET /chat/{id}?pending=1` render stub (Send for email / Copy for linkedin·x),
+plus `GET /api/external/handoff` and a `/mint` test helper. Verified standalone:
+valid token → profile; missing token → 401; pending-draft → `{ draftId, deepLink }`;
+expired token → 401.
+
+### Task 2 — Automated integration tests — DONE
+
+`scripts/integration-handoff.test.mjs` (new; dependency-free, uses the mock
+in-process) + `npm run test:integration`. Drives the full handoff against the
+running Thaw server: token → session → profile → pending-draft → deepLink, plus
+invalid-token 401 and no-session 401. Also added `npm run mock:coldreach`.
+
+Prereq (same model as `scripts/smoke.ts`): Thaw dev server running with the same
+`INTEGRATION_SHARED_SECRET` and `COLDREACH_URL` pointing at the mock port; the
+test starts the mock or reuses one already on the port. Result:
+
+```
+  [PASS] minted handoff token
+  [PASS] session: 200 + ok
+  [PASS] session: identity carried — name=Jordan Lee
+  [PASS] profile: resume/comments/emailClosing present
+  [PASS] session: httpOnly handoff cookie set
+  [PASS] pending-draft: 200 + deepLink
+  [PASS] deepLink: ColdReach renders stored draft
+  [PASS] invalid token -> session 401
+  [PASS] no session -> pending-draft 401
+ALL CHECKS PASSED
+```
+
+### Task 3 — Failure UX (new components/states only) — DONE
+
+`app/handoff-status/HandoffStatus.tsx` (client) + `app/handoff-status/page.tsx`
+(preview/target route). Three states with a retry action:
+`coldreach-unreachable`, `token-expired` (states the 15-min TTL), and a generic
+`error`. Reuses existing CSS classes; no globals.css change.
+
+NOTE (per constraints): these are ADDITIVE, standalone surfaces and are **not
+wired into the working /start flow** — wiring would require editing `app/start`,
+which was explicitly out of scope for this branch. They are ready to wire (e.g.
+the flow can redirect to `/handoff-status?state=token-expired`). Verified all
+three render in the browser at `/handoff-status?state=...`.
+
+---
+
+## Integration branch (`integration/final`) — reconcile PRs #7 + #8 + #9 + #10
+
+Cut from `main`. One commit per step. Target = v2 PRD architecture: stateless
+`/v1`, Fiber→fallback data layer, exactly ONE send path (Option C handoff), Thaw
+never sends.
+
+### Gate 1 — Verify #7's fallback — RESOLVED
+
+Inspected #7's `cohortProspects()` / `REAL_PEOPLE` (`lib/mock-data.ts`):
+
+1. **Static, no live calls?** YES — hardcoded in-repo array, returned
+   synchronously; no Fiber/Apollo at request time.
+2. **Preserves email mix (≥1 with email AND ≥1 without)?** NO — all 4 cohort
+   people are no-email (`channels.email=false`), and #7's live Fiber results also
+   set `email:false`. The email-channel demo would have no eligible prospect.
+
+**Decision:** Per Gate 1, since the cohort loses the email mix, KEEP the synthetic
+`lib/dataset/yc-fintech.ts` curated dataset as the always-present static floor
+(it has the email mix and cannot fail). Fallback chain in `narrow`:
+**live Fiber → #7 real cohort → curated yc-fintech dataset (floor)**, merged +
+deduped + ranked. The curated floor is always included so the on-stage email and
+no-email paths both work, per PRD ("use the curated dataset for the live demo
+path even if Fiber is wired in"). NOTE for Brandon: this re-introduces the
+synthetic dataset that #7 intentionally dropped — logged here, not silent.
+
+### Step 1 — Base: #7 data layer + #8 handoff + #10 tests — DONE
+
+Merged `overnight/test-harness` (brings #8 handoff + #10 mock/tests/failure-UX)
+and #7 (`coldreach-intel-brandon-slice-2330`) onto `integration/final`. Conflicts
+resolved: `.env.example` (kept the integration block; added `COLDREACH_URL` /
+`INTEGRATION_SHARED_SECRET`), `app/demo/components/DraftView.tsx` (kept #8's
+canonical Send→`postPendingDraft` version; dropped #7's older `composeDraft`),
+`PROGRESS.md` (kept both sections). Applied Gate 1 fallback chain in
+`lib/narrow.ts`: live Fiber → real cohort → curated `yc-fintech` floor (ranked,
+deduped); all results cached for hooks/enrich. `/v1` stays JSON-only/stateless/no
+Gmail/no send. `npm run typecheck` green.
+
+### Step 2 — Fold in ONLY #9's wanted pieces — DONE
+
+Brought from #9: streaming chat UX (`app/demo/chat-workflow.tsx`,
+`app/api/demo/chat/route.ts`, `app/chat/page.tsx`), dark mode/theme
+(`app/globals.css`, `app/providers.tsx`), landing/redirect (`app/page.tsx`,
+`app/demo/page.tsx` → `/chat`), additive `ProspectPerson.emailStatus` /
+`emailSource` (`lib/types.ts`), and deps `@assistant-ui/react` +
+`@assistant-ui/react-ai-sdk`. **Rewired** `chat-workflow.tsx`: dropped its
+`draft-state` import and local `/email` navigation; the draft step now renders
+#8's `DraftView` (composes finished text via `lib/draft.ts`, Sends via
+`postPendingDraft`), reads the handoff `sender` from session storage.
+NOT brought: `app/api/email/send`, `app/email/[draftId]`,
+`app/demo/drafts/[draftId]`, `app/settings`, `app/demo/draft-state.ts`, and #9's
+`lib/narrow|context|rank|dataset|apollo` changes. typecheck + lint green.
+
+### Step 3 — Delete #9's competing send path — DONE (none present)
+
+Because Step 2 was selective, #9's send route + local pages were never brought.
+Verified absent on disk: `app/api/email/send/route.ts`, `app/email/`,
+`app/demo/drafts/`, `app/settings/page.tsx`, `app/demo/draft-state.ts`.
+`git grep` for `COLDREACH_SEND_URL`, `api/email/send`, `draft-state`, `/email/`,
+`/demo/drafts`, `/settings` in tracked source → **zero references**.
+`COLDREACH_SEND_URL` is not present in any env file (only `COLDREACH_URL`).
+
+### Step 4 — Single Option-C send path — DONE
+
+Exactly one send path in the repo: `DraftView` →
+`POST /api/integration/pending-draft` → `postPendingDraft()`
+(`lib/coldreach-integration.ts`) → `{ deepLink }` → redirect into ColdReach,
+which sends from the user's own session. No route forwards email anywhere; no
+Thaw code touches `gmail.send`/OAuth/tokens (verified by grep).
+
+### Step 5 — Reconcile `lib/narrow.ts` + `lib/context.ts` — DONE
+
+Decision applied: the **#7 data-layer version wins as the base**; #9's chat UX
+rides on top (it consumes `/v1/narrow|hooks|enrich`, not its own retrieval).
+#9's `lib/narrow.ts`/`lib/context.ts`/`lib/rank.ts`/`lib/dataset`/`lib/apollo`
+changes were NOT brought. `context.ts` resolves people via `people-cache`
+(populated by `narrow` for both the cohort and the curated floor) + the static
+cohort; hooks/enrich return grounded results or fall back to the human-confirmed
+custom hook — never fabricated.
+**NOTE for Brandon:** narrow.ts/context.ts reconciled toward #7's data layer;
+#9's chat rides on top, and the curated `yc-fintech` floor was re-added under
+#7's cohort (Gate 1). Please confirm.
+
+### Step 6 — Definition of done: full Option C against the mock — DONE
+
+- ✅ `npm run typecheck`, `npm run lint`, `npm run build` (routes: `/`, `/chat`,
+  `/start`, `/handoff-status`, `/api/integration/*`, `/api/demo/{chat,stream}`,
+  `/api/v1/*`; NO `/api/email/send`).
+- ✅ `npm run test:integration` — token → session → profile → pending-draft →
+  deepLink, plus invalid-token 401 and no-session 401 (9/9).
+- ✅ End-to-end browser (chat UX): ColdReach handoff → `/start` → `/chat` →
+  targeting → prospect (Maya Chen, email) → find warm lead → custom hook →
+  finished draft ending in the sender closing `Warmly,/Jordan Lee/GTM Advisor`
+  → "Send via ColdReach" → ColdReach review → "Sent from your Gmail (demo)".
+- ✅ No-email path: a no-email prospect yields a channel-aware **DM** draft (no
+  Email channel, no Subject, button "Save to ColdReach →"); its deepLink renders
+  ColdReach's **Copy** button (not Send). Direct `/chat` visit (no handoff) →
+  pending-draft 401 with a clear message (guardrail working).
+- Fix applied during DoD: `narrow` now guarantees ≥1 email prospect stays in the
+  visible result (live Fiber + no-email cohort were outranking the curated floor).
+
+Guardrails verified: exactly ONE send path (Option C); no `gmail.send`/OAuth/token
+storage; no `COLDREACH_SEND_URL`; `/v1` routes unchanged; `lib/types.ts` additive
+only.
