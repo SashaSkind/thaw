@@ -20,7 +20,7 @@ export interface HookFallbackInput {
   extraSources?: string[];
 }
 
-const APOLLO_MATCH_URL = "https://api.apollo.io/v1/people/match";
+const APOLLO_MATCH_URL = "https://api.apollo.io/api/v1/people/match";
 
 /**
  * Gather non-Fiber source snippets for a prospect. Returns [] when nothing real
@@ -45,18 +45,21 @@ async function fetchApolloBio(person: ProspectPerson): Promise<string[]> {
   if (!apiKey) return [];
 
   try {
-    const res = await fetch(APOLLO_MATCH_URL, {
+    const matchUrl = new URL(APOLLO_MATCH_URL);
+    addApolloParam(matchUrl, "name", person.name);
+    addApolloParam(matchUrl, "organization_name", person.company);
+    addApolloParam(matchUrl, "linkedin_url", person.linkedinUrl);
+    matchUrl.searchParams.set("reveal_personal_emails", "false");
+    matchUrl.searchParams.set("reveal_phone_number", "false");
+
+    const res = await fetch(matchUrl.toString(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache",
+        accept: "application/json",
         "X-Api-Key": apiKey,
       },
-      body: JSON.stringify({
-        name: person.name,
-        email: person.email,
-        organization_name: person.company,
-      }),
       signal: AbortSignal.timeout(4000),
     });
     if (!res.ok) return [];
@@ -76,6 +79,11 @@ async function fetchApolloBio(person: ProspectPerson): Promise<string[]> {
     );
     return [];
   }
+}
+
+function addApolloParam(url: URL, key: string, value?: string): void {
+  const trimmed = value?.trim();
+  if (trimmed) url.searchParams.set(key, trimmed);
 }
 
 const hookExtractionSchema = z.object({

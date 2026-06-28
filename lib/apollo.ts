@@ -12,11 +12,33 @@ import type {
   TargetingIntent,
 } from "@/lib/types";
 
-const APOLLO_BASE = "https://api.apollo.io/v1";
+const APOLLO_BASE = "https://api.apollo.io/api/v1";
+const APOLLO_MATCH_PATH = "/people/match";
 
 export interface ApolloResult {
   companies: ProspectCompany[];
   people: ProspectPerson[];
+}
+
+export interface ApolloContactInput {
+  name: string;
+  company?: string;
+  domain?: string;
+  linkedinUrl?: string;
+}
+
+export interface ApolloContactEmailResult {
+  available: boolean;
+  email?: string;
+  emailStatus: ProspectPerson["emailStatus"];
+  reason?: string;
+}
+
+interface ApolloPersonPayload {
+  email?: unknown;
+  email_status?: unknown;
+  headline?: unknown;
+  bio?: unknown;
 }
 
 export function isApolloEnabled(): boolean {
@@ -70,6 +92,75 @@ export async function searchApollo(
   }
 }
 
+/**
+ * Verify a selected prospect's email with Apollo. Unverified or missing emails
+ * are treated as unavailable so the UI never displays guessed fallback values.
+ */
+export async function getVerifiedContactEmail(
+  person: ApolloContactInput,
+): Promise<ApolloContactEmailResult> {
+  const apiKey = process.env.APOLLO_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      available: false,
+      emailStatus: "unavailable",
+      reason: "APOLLO_API_KEY not set — email verification skipped.",
+    };
+  }
+
+  try {
+    const response = await fetch(buildPeopleMatchUrl(person, true), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        accept: "application/json",
+        "x-api-key": apiKey,
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!response.ok) {
+      return {
+        available: false,
+        emailStatus: "unavailable",
+        reason: `Apollo responded ${response.status}`,
+      };
+    }
+
+    const data = (await response.json()) as { person?: ApolloPersonPayload };
+    const apolloPerson = data.person;
+    const email = readNonEmptyString(apolloPerson?.email);
+    const emailStatus = readNonEmptyString(apolloPerson?.email_status);
+
+    if (!email) {
+      return {
+        available: false,
+        emailStatus: "unavailable",
+        reason: "Apollo did not return an email for this contact.",
+      };
+    }
+
+    if (emailStatus !== "verified") {
+      return {
+        available: false,
+        emailStatus: "unavailable",
+        reason: `Apollo returned email_status=${emailStatus || "unknown"}.`,
+      };
+    }
+
+    return { available: true, email, emailStatus: "verified" };
+  } catch (error) {
+    return {
+      available: false,
+      emailStatus: "unavailable",
+      reason: `Apollo request failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
+}
+
 // Defensive normalization: Apollo's shape is loosely typed here on purpose so a
 // schema drift downgrades to the dataset instead of throwing.
 function normalizeApollo(data: unknown): ApolloResult {
@@ -99,7 +190,9 @@ function normalizeApollo(data: unknown): ApolloResult {
       });
     }
 
-    const email = p.email ? String(p.email) : undefined;
+    const email = readNonEmptyString(p.email);
+    const emailStatus = readNonEmptyString(p.email_status);
+    const hasVerifiedEmail = Boolean(email) && emailStatus === "verified";
     const linkedinUrl = p.linkedin_url ? String(p.linkedin_url) : undefined;
     const name = String(p.name ?? `${p.first_name ?? ""} ${p.last_name ?? ""}`).trim();
 
@@ -110,12 +203,14 @@ function normalizeApollo(data: unknown): ApolloResult {
       company: companyName,
       companyId,
       location: p.city ? String(p.city) : undefined,
-      email,
+      email: hasVerifiedEmail ? email : undefined,
+      emailStatus: email ? (hasVerifiedEmail ? "verified" : "unavailable") : undefined,
+      emailSource: email ? "apollo" : undefined,
       linkedinUrl,
       evidence: "",
       matchScore: 0,
       channels: {
-        email: Boolean(email),
+        email: hasVerifiedEmail,
         linkedin: Boolean(linkedinUrl),
         x: false,
       },
@@ -171,16 +266,26 @@ export async function getBio(person: {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), APOLLO_BIO_TIMEOUT_MS);
   try {
-    const response = await fetch("https://api.apollo.io/v1/people/match", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key },
-      body: JSON.stringify({
-        name: person.name,
-        organization_name: person.company,
-        linkedin_url: person.linkedinUrl,
-      }),
-      signal: controller.signal,
-    });
+    const response = await fetch(
+      buildPeopleMatchUrl(
+        {
+          name: person.name,
+          company: person.company,
+          linkedinUrl: person.linkedinUrl,
+        },
+        false,
+      ),
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "cache-control": "no-cache",
+          accept: "application/json",
+          "x-api-key": key,
+        },
+        signal: controller.signal,
+      },
+    );
     if (!response.ok) {
       return {
         available: false,
@@ -206,4 +311,30 @@ export async function getBio(person: {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function buildPeopleMatchUrl(
+  person: ApolloContactInput,
+  shouldRevealPersonalEmails: boolean,
+): string {
+  const url = new URL(`${APOLLO_BASE}${APOLLO_MATCH_PATH}`);
+  addSearchParam(url, "name", person.name);
+  addSearchParam(url, "organization_name", person.company);
+  addSearchParam(url, "domain", person.domain);
+  addSearchParam(url, "linkedin_url", person.linkedinUrl);
+  url.searchParams.set(
+    "reveal_personal_emails",
+    shouldRevealPersonalEmails ? "true" : "false",
+  );
+  url.searchParams.set("reveal_phone_number", "false");
+  return url.toString();
+}
+
+function addSearchParam(url: URL, key: string, value?: string): void {
+  const trimmed = value?.trim();
+  if (trimmed) url.searchParams.set(key, trimmed);
+}
+
+function readNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
