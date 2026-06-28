@@ -45,7 +45,9 @@ export interface ProspectPerson {
   company: string;
   companyId: string;
   location?: string;
-  email?: string; // present only if found
+  email?: string; // present only when verified by Fiber/Apollo
+  emailStatus?: "verified" | "guessed" | "unavailable";
+  emailSource?: "fiber" | "apollo";
   linkedinUrl?: string;
   xUrl?: string;
   evidence: string; // why this person matches the goal

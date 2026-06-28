@@ -12,11 +12,17 @@ import type {
   TargetingIntent,
 } from "@/lib/types";
 
-const APOLLO_BASE = "https://api.apollo.io/v1";
+const APOLLO_BASE = "https://api.apollo.io/api/v1";
 
 export interface ApolloResult {
   companies: ProspectCompany[];
   people: ProspectPerson[];
+}
+
+export interface ApolloEmailEnrichmentResult {
+  people: ProspectPerson[];
+  available: boolean;
+  reason?: string;
 }
 
 export function isApolloEnabled(): boolean {
@@ -35,7 +41,7 @@ export async function searchApollo(
   if (!apiKey) return null;
 
   try {
-    const res = await fetch(`${APOLLO_BASE}/mixed_people/search`, {
+    const res = await fetch(`${APOLLO_BASE}/mixed_people/api_search`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -99,7 +105,11 @@ function normalizeApollo(data: unknown): ApolloResult {
       });
     }
 
-    const email = p.email ? String(p.email) : undefined;
+    // People API Search intentionally does not return email addresses. If Apollo
+    // ever includes one here, only trust it when it explicitly says verified.
+    const emailStatus = p.email_status ? String(p.email_status) : undefined;
+    const email =
+      emailStatus === "verified" && p.email ? String(p.email) : undefined;
     const linkedinUrl = p.linkedin_url ? String(p.linkedin_url) : undefined;
     const name = String(p.name ?? `${p.first_name ?? ""} ${p.last_name ?? ""}`).trim();
 
@@ -111,6 +121,8 @@ function normalizeApollo(data: unknown): ApolloResult {
       companyId,
       location: p.city ? String(p.city) : undefined,
       email,
+      emailStatus: email ? "verified" : "unavailable",
+      emailSource: email ? "apollo" : undefined,
       linkedinUrl,
       evidence: "",
       matchScore: 0,
@@ -123,6 +135,139 @@ function normalizeApollo(data: unknown): ApolloResult {
   }
 
   return { companies: Array.from(companies.values()), people };
+}
+
+export async function enrichPeopleEmailsWithApollo(
+  people: ProspectPerson[],
+  companies: ProspectCompany[],
+): Promise<ApolloEmailEnrichmentResult> {
+  const key = process.env.APOLLO_API_KEY?.trim();
+  if (!key) {
+    return {
+      available: false,
+      people,
+      reason: "APOLLO_API_KEY not set — emails not enriched by Apollo.",
+    };
+  }
+
+  const companyById = new Map(companies.map((company) => [company.id, company]));
+  const details = people.slice(0, 10).map((person) => {
+    const company = companyById.get(person.companyId);
+    return {
+      name: person.name,
+      organization_name: person.company,
+      domain: company?.domain,
+      linkedin_url: person.linkedinUrl,
+    };
+  });
+
+  try {
+    const response = await fetch(
+      `${APOLLO_BASE}/people/bulk_match?reveal_personal_emails=false&reveal_phone_number=false`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "cache-control": "no-cache",
+          "x-api-key": key,
+        },
+        body: JSON.stringify({ details }),
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+
+    if (!response.ok) {
+      return {
+        available: false,
+        people,
+        reason: `Apollo bulk enrichment responded ${response.status}`,
+      };
+    }
+
+    const data = (await response.json()) as { matches?: unknown[] };
+    const matches = Array.isArray(data.matches) ? data.matches : [];
+    const enriched = people.map((person, index) => {
+      const match = findApolloMatch(person, matches[index], matches);
+      const email = verifiedApolloEmail(match);
+      if (!email && person.emailSource === "fiber" && person.email) {
+        return person;
+      }
+      if (!email) {
+        return {
+          ...person,
+          email: undefined,
+          emailStatus: "unavailable" as const,
+          emailSource: undefined,
+          channels: { ...person.channels, email: false },
+        };
+      }
+
+      return {
+        ...person,
+        email,
+        emailStatus: "verified" as const,
+        emailSource: "apollo" as const,
+        channels: { ...person.channels, email: true },
+      };
+    });
+
+    return { available: true, people: enriched };
+  } catch (error) {
+    return {
+      available: false,
+      people,
+      reason: `Apollo bulk enrichment failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
+}
+
+function findApolloMatch(
+  person: ProspectPerson,
+  indexedMatch: unknown,
+  matches: unknown[],
+): Record<string, unknown> | null {
+  const indexed = asRecord(indexedMatch);
+  if (isLikelyApolloMatch(person, indexed)) return indexed;
+  return (
+    matches.map(asRecord).find((match) => isLikelyApolloMatch(person, match)) ??
+    null
+  );
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function isLikelyApolloMatch(
+  person: ProspectPerson,
+  match: Record<string, unknown> | null,
+): match is Record<string, unknown> {
+  if (!match) return false;
+  const matchName = String(match.name ?? "").toLowerCase();
+  const matchLinkedin = String(match.linkedin_url ?? "").toLowerCase();
+  const personLinkedin = (person.linkedinUrl ?? "").toLowerCase();
+  if (personLinkedin && matchLinkedin && matchLinkedin === personLinkedin) {
+    return true;
+  }
+  return matchName === person.name.toLowerCase();
+}
+
+function verifiedApolloEmail(match: Record<string, unknown> | null): string | undefined {
+  if (!match) return undefined;
+  const emailStatus = String(match.email_status ?? "").toLowerCase();
+  const email = match.email ? String(match.email) : undefined;
+  if (emailStatus !== "verified" || !email || !isValidEmail(email)) {
+    return undefined;
+  }
+  return email;
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function slug(s: string): string {
@@ -171,7 +316,7 @@ export async function getBio(person: {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), APOLLO_BIO_TIMEOUT_MS);
   try {
-    const response = await fetch("https://api.apollo.io/v1/people/match", {
+    const response = await fetch(`${APOLLO_BASE}/people/match`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": key },
       body: JSON.stringify({
