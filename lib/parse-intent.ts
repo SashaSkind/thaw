@@ -1,10 +1,9 @@
 // lib/parse-intent.ts
 // Turn a broad targeting goal into structured TargetingIntent.
 //
-// Primary path: Vercel AI SDK + OpenAI `generateObject` (OpenAI is the sponsor
-// model for this repo's reasoning). Fallback path: a deterministic keyword
-// heuristic so the live demo NEVER depends on a key being present or the model
-// being up — same reliability principle the spec applies to Apollo.
+// Intent fields (industry, roles, geography, etc.) are derived ONLY from `query`.
+// `userBackground` is intentionally NOT accepted here — it is a ranking-bias
+// signal applied later in lib/rank.ts (see applyBackgroundBias).
 
 import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
@@ -39,27 +38,52 @@ function nonEmpty<T>(arr: T[] | null | undefined): T[] | undefined {
 
 const SYSTEM_PROMPT =
   "Extract structured B2B prospecting criteria from the user's targeting goal. " +
-  "Return only the fields you're confident about. Normalize company funding " +
-  "stage to one of: seed, series_a, series_b, series_c, growth, unknown. " +
-  "Geography should be human-readable (e.g. 'New York, NY'). Roles should be " +
-  "lowercased job functions (e.g. 'founder', 'ceo'). Exclusions are things the " +
-  "user explicitly wants to avoid.";
+  "Parse ONLY what the targeting goal explicitly states — do not infer criteria " +
+  "from any other context. Return only the fields you're confident about. " +
+  "Normalize company funding stage to one of: seed, series_a, series_b, series_c, " +
+  "growth, unknown. Geography should be human-readable (e.g. 'New York, NY'). " +
+  "Roles should be lowercased job functions (e.g. 'founder', 'ceo'). Exclusions " +
+  "are things the user explicitly wants to avoid.";
 
-export async function parseIntent(
-  query: string,
-  userBackground?: string,
-): Promise<TargetingIntent> {
-  if (process.env.OPENAI_API_KEY) {
+export type IntentParseMode = "openai" | "heuristic";
+
+function logIntentParse(payload: {
+  mode: IntentParseMode;
+  query: string;
+  reason?: string;
+  intent?: TargetingIntent;
+}): void {
+  console.log(
+    JSON.stringify({
+      event: "narrow.intent",
+      mode: payload.mode,
+      query: payload.query,
+      source: "query_only",
+      ...(payload.reason ? { reason: payload.reason } : {}),
+      ...(payload.intent
+        ? {
+            parsed: {
+              industry: payload.intent.industry ?? [],
+              geography: payload.intent.geography ?? [],
+              roles: payload.intent.roles ?? [],
+              stage: payload.intent.stage ?? [],
+            },
+          }
+        : {}),
+    }),
+  );
+}
+
+export async function parseIntent(query: string): Promise<TargetingIntent> {
+  if (process.env.OPENAI_API_KEY?.trim()) {
     try {
       const { object } = await generateObject({
         model: openai(process.env.OPENAI_MODEL || "gpt-4o-mini"),
         schema: intentSchema,
         system: SYSTEM_PROMPT,
-        prompt: userBackground
-          ? `Targeting goal: ${query}\n\nUser background (for context, may refine targeting): ${userBackground}`
-          : `Targeting goal: ${query}`,
+        prompt: `Targeting goal: ${query}`,
       });
-      return {
+      const intent: TargetingIntent = {
         rawQuery: query,
         industry: nonEmpty(object.industry),
         geography: nonEmpty(object.geography),
@@ -68,16 +92,28 @@ export async function parseIntent(
         roles: nonEmpty(object.roles),
         exclusions: nonEmpty(object.exclusions),
       };
+      logIntentParse({ mode: "openai", query, intent });
+      return intent;
     } catch (err) {
-      // Never throw to the caller because the model is down / misconfigured.
+      const reason = err instanceof Error ? err.message : String(err);
       console.warn(
         "[parse-intent] OpenAI parse failed, using heuristic fallback:",
-        err instanceof Error ? err.message : err,
+        reason,
       );
+      const intent = heuristicParse(query);
+      logIntentParse({ mode: "heuristic", query, reason: `openai_failed: ${reason}`, intent });
+      return intent;
     }
   }
 
-  return heuristicParse(query);
+  const intent = heuristicParse(query);
+  logIntentParse({
+    mode: "heuristic",
+    query,
+    reason: "OPENAI_API_KEY not set",
+    intent,
+  });
+  return intent;
 }
 
 // ---- deterministic fallback ----

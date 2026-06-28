@@ -165,6 +165,76 @@ export function buildEvidence(
   return sentence;
 }
 
+/** Max points added from sender-background overlap (ranking only, never intent). */
+const BACKGROUND_BIAS_MAX = 8;
+
+const BACKGROUND_STOPWORDS = new Set([
+  "about",
+  "also",
+  "been",
+  "from",
+  "have",
+  "help",
+  "into",
+  "more",
+  "that",
+  "their",
+  "them",
+  "they",
+  "this",
+  "with",
+  "your",
+]);
+
+function significantBackgroundTerms(userBackground: string): string[] {
+  return Array.from(
+    new Set(
+      userBackground
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((term) => term.length > 3 && !BACKGROUND_STOPWORDS.has(term)),
+    ),
+  );
+}
+
+/**
+ * Small matchScore bonus when a prospect overlaps the sender's background.
+ * Used for personalization only — never changes parsed intent criteria.
+ */
+export function backgroundBiasBonus(
+  person: ProspectPerson,
+  userBackground?: string,
+): number {
+  const background = userBackground?.trim();
+  if (!background) return 0;
+
+  const haystack =
+    `${person.title} ${person.company} ${person.evidence} ${person.location ?? ""}`.toLowerCase();
+  const terms = significantBackgroundTerms(background);
+  if (terms.length === 0) return 0;
+
+  let hits = 0;
+  for (const term of terms) {
+    if (haystack.includes(term)) hits += 1;
+  }
+  if (hits === 0) return 0;
+
+  return Math.min(BACKGROUND_BIAS_MAX, hits * 2);
+}
+
+/** Apply sender-background ranking bias without mutating intent-derived fields. */
+export function applyBackgroundBias(
+  person: ProspectPerson,
+  userBackground?: string,
+): ProspectPerson {
+  const bonus = backgroundBiasBonus(person, userBackground);
+  if (bonus === 0) return person;
+  return {
+    ...person,
+    matchScore: clamp(person.matchScore + bonus),
+  };
+}
+
 /** Apply score + evidence to a person, returning a new object. */
 export function rankPerson(
   person: ProspectPerson,
