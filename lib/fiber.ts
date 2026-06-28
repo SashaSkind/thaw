@@ -270,8 +270,9 @@ interface PeopleSearchResponse {
       primary_slug?: string | null;
       slugs?: (string | null)[] | null;
       url?: string | null;
-      inferred_location?: string | null;
       locality?: string | null;
+      inferred_location?: { city?: string | null; state_name?: string | null } | null;
+      current_job?: { company_name?: string | null } | null;
       relevance_score?: number | null;
     }[];
   };
@@ -285,6 +286,17 @@ function companyFromHeadline(headline?: string | null): string | undefined {
   return undefined;
 }
 
+function locationString(p: {
+  locality?: string | null;
+  inferred_location?: { city?: string | null; state_name?: string | null } | null;
+}): string | undefined {
+  if (p.locality) return p.locality;
+  const city = p.inferred_location?.city;
+  const state = p.inferred_location?.state_name;
+  const parts = [city, state].filter(Boolean);
+  return parts.length ? parts.join(", ") : undefined;
+}
+
 export async function getPeople(
   criteria: PeopleCriteria,
 ): Promise<FiberResult<FiberPerson[]>> {
@@ -295,11 +307,13 @@ export async function getPeople(
     .slice(0, criteria.limit ?? 12)
     .map((p) => {
       const slug = p.primary_slug ?? p.slugs?.find(Boolean) ?? undefined;
+      const company =
+        p.current_job?.company_name?.trim() || companyFromHeadline(p.headline);
       return {
         name: p.name ?? p.full_name ?? "Unknown",
         title: p.headline ?? undefined,
-        company: companyFromHeadline(p.headline),
-        location: p.inferred_location ?? p.locality ?? undefined,
+        company: company || undefined,
+        location: locationString(p),
         slug: slug ?? undefined,
         linkedinUrl: slug
           ? `https://www.linkedin.com/in/${slug}`

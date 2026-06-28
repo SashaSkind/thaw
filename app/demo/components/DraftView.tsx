@@ -44,16 +44,19 @@ function composeDraft(
   const firstName = person.name.split(" ")[0];
   const hook = confirmedHook.replace(/\.$/, "");
   const hookLower = hook.charAt(0).toLowerCase() + hook.slice(1);
+  const company = person.company?.trim();
+  const atCompany = company ? ` at ${company}` : "";
+  const companyRef = company ?? "your work";
 
   const opener: Record<Tone, string> = {
     casual: `Hey ${firstName} — noticed ${hookLower}, so I figured I'd reach out.`,
-    professional: `Hi ${firstName}, I came across your work at ${person.company} — and ${hookLower}.`,
+    professional: `Hi ${firstName}, I came across your work${atCompany} — and ${hookLower}.`,
     efficient: `${firstName} — ${hook}.`,
   };
   const body: Record<Tone, string> = {
     casual: `I'm working on something I think could genuinely help with what you're building. Open to swapping notes this week?`,
-    professional: `I'd love to share something relevant to what you're focused on at ${person.company}. Would you be open to a short conversation?`,
-    efficient: `Built something relevant to ${person.company}. Worth 10 minutes?`,
+    professional: `I'd love to share something relevant to what you're focused on${atCompany}. Would you be open to a short conversation?`,
+    efficient: `Built something relevant to ${companyRef}. Worth 10 minutes?`,
   };
   const signoff: Record<Tone, string> = {
     casual: "Cheers!",
@@ -63,9 +66,9 @@ function composeDraft(
 
   if (channel === "email") {
     const subject: Record<Tone, string> = {
-      casual: `quick idea for ${person.company}`,
-      professional: `A relevant note for ${firstName} at ${person.company}`,
-      efficient: `${person.company} — 10 min?`,
+      casual: company ? `quick idea for ${company}` : `quick idea for you`,
+      professional: `A relevant note for ${firstName}${atCompany}`,
+      efficient: company ? `${company} — 10 min?` : `${firstName} — 10 min?`,
     };
     return `Subject: ${subject[tone]}\n\n${opener[tone]}\n\n${body[tone]}\n\n${signoff[tone]}\n— Sent via ColdReach`;
   }

@@ -23,8 +23,10 @@ export function PersonDetail({
       <div className="section">
         <h2>{person.name}</h2>
         <div className="role muted">
-          {person.title} · {person.company}
-          {person.location ? ` · ${person.location}` : ""}
+          {[person.title, person.company, person.location]
+            .map((s) => s?.trim())
+            .filter(Boolean)
+            .join(" · ")}
         </div>
         <div className="detail-links">
           {person.linkedinUrl && (

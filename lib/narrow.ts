@@ -28,11 +28,10 @@ function slugId(slug: string): string {
   return `fiber_${slug}`;
 }
 
-/** Scale Fiber's relevance score (often 0..1 or 0..100) into a 0..100 match. */
+/** Map Fiber's relevance score (a small positive float) into a 0..100 match. */
 function toMatchScore(relevance?: number): number {
   if (relevance == null) return 70;
-  const scaled = relevance <= 1 ? relevance * 100 : relevance;
-  return Math.max(40, Math.min(93, Math.round(scaled)));
+  return Math.max(45, Math.min(92, Math.round(50 + relevance * 5)));
 }
 
 export async function narrowPeople(goal: string): Promise<NarrowResult> {
@@ -61,7 +60,9 @@ export async function narrowPeople(goal: string): Promise<NarrowResult> {
           companyId: "",
           location: fp.location,
           linkedinUrl: fp.linkedinUrl,
-          evidence: fp.title ?? "Found via live Fiber people search.",
+          evidence:
+            fp.title?.trim() ||
+            `${fp.name} — found via live Fiber people search.`,
           matchScore: toMatchScore(fp.relevanceScore),
           channels: { email: false, linkedin: Boolean(fp.linkedinUrl), x: false },
         });
