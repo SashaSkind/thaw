@@ -5,14 +5,19 @@ It takes a broad targeting goal (e.g. _"founders at YC fintechs in NYC, Series B
 and returns **ranked, specific people with reasons** as structured JSON.
 The service _researches_; ColdReach _acts_ (drafting + sending).
 
+The `/demo` route now presents this as a chat-first coffee-chat workflow:
+target in one large composer, pick from ranked contacts, confirm a warm hook
+from social/context signals, then edit/send from a sidebar draft chat.
+
 See [`AGENTS.md`](./AGENTS.md) for the full build spec and architecture.
 
 ## Stack
 
 - Next.js 16 (App Router) + React 19 + TypeScript (strict)
 - Vercel AI SDK (`ai`) + `@ai-sdk/openai` for intent parsing
+- `@assistant-ui/react` + `@assistant-ui/react-ai-sdk` for the chat runtime shell
 - `zod` for request validation
-- Apollo (optional) with a curated YC-fintech dataset fallback
+- Fiber and Apollo (optional) with a curated YC-fintech dataset fallback
 
 ## Setup
 
@@ -22,9 +27,18 @@ cp .env.example .env.local   # set SERVICE_SHARED_SECRET (others optional)
 npm run dev                  # http://localhost:3000
 ```
 
-`OPENAI_API_KEY` and `APOLLO_API_KEY` are **optional**: without them the service
-falls back to a deterministic heuristic intent parser and the curated dataset,
-so the demo path always works.
+`OPENAI_API_KEY`, `FIBER_API_KEY`, and `APOLLO_API_KEY` are **optional**:
+without them the service falls back to deterministic heuristics and the curated
+dataset, so the demo path always works.
+
+## Folder structure
+
+- `app/demo/` - chat-first coffee-chat demo UI
+- `app/api/v1/` - structured narrow/hooks/enrich endpoints
+- `app/api/demo/chat/` - assistant-ui/Vercel AI SDK streaming transport target
+- `lib/` - backend clients, parsing, ranking, context, and shared types
+- `lib/dataset/` - curated fallback prospect data
+- `scripts/` - smoke and integration helpers
 
 ## Endpoints
 
@@ -34,8 +48,8 @@ header matching `SERVICE_SHARED_SECRET`.
 | Method & path        | Owner   | Status |
 | -------------------- | ------- | ------ |
 | `POST /api/v1/narrow` | Sasha   | real   |
-| `POST /api/v1/hooks`  | Brandon | stub (mock JSON) |
-| `POST /api/v1/enrich` | Brandon | stub (mock JSON) |
+| `POST /api/v1/hooks`  | Brandon | real (Fiber/fallback context) |
+| `POST /api/v1/enrich` | Brandon | real (Fiber/fallback context) |
 
 ### Example
 
