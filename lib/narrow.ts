@@ -186,7 +186,16 @@ export async function narrow(req: NarrowRequest): Promise<NarrowResponse> {
     })),
   );
 
-  const limited = merged.slice(0, limit);
+  let limited = merged.slice(0, limit);
+
+  // Gate 1: guarantee the email mix is visible for the demo. Live Fiber + the
+  // real cohort are all no-email and outrank the curated floor, so an email
+  // prospect can get sliced out — ensure at least one stays in the result.
+  if (limit > 0 && !limited.some((p) => p.channels.email)) {
+    const bestEmail = merged.find((p) => p.channels.email);
+    if (bestEmail) limited = [...limited.slice(0, limit - 1), bestEmail];
+  }
+
   return {
     intent,
     companies: buildCompanies(limited, req.query),
