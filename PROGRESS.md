@@ -107,3 +107,22 @@ EXIT=0
 ```
 
 `npm run typecheck` + `npm run lint` green.
+
+---
+
+## Overnight test harness (branch `overnight/test-harness`)
+
+Additive-only, one commit per task, on top of the PR #8 handoff integration. No
+edits to `lib/coldreach-integration.ts`, `app/start`, `app/api/integration/*`,
+`lib/draft.ts`, or the `/v1` service. Blocked/ambiguous items are tagged
+`// BLOCKED:` and logged here.
+
+### Task 1 — Commit the mock ColdReach — DONE
+
+`mocks/coldreach/server.mjs` + `mocks/coldreach/README.md`. Dependency-free
+(HS256 via `node:crypto`), implements docs/integration.md §2:
+`GET /api/external/profile`, `POST /api/external/pending-draft`, and the
+`GET /chat/{id}?pending=1` render stub (Send for email / Copy for linkedin·x),
+plus `GET /api/external/handoff` and a `/mint` test helper. Verified standalone:
+valid token → profile; missing token → 401; pending-draft → `{ draftId, deepLink }`;
+expired token → 401.
