@@ -1084,6 +1084,18 @@ textarea:focus {
   gap: var(--cr-space-2);
   font-size: var(--cr-text-sm);
 }
+.sidebar-settings-link {
+  display: block;
+  border-radius: var(--cr-radius-md);
+  color: var(--cr-text);
+  font-family: var(--cr-font-serif);
+  font-size: var(--cr-text-md);
+  padding: var(--cr-space-3);
+}
+.sidebar-settings-link:hover {
+  background: var(--cr-surface-hover);
+  text-decoration: none;
+}
 .avatar-pill,
 .chat-avatar {
   border-radius: var(--cr-radius-pill);
@@ -1349,6 +1361,39 @@ textarea:focus {
 }
 .email-editor-card input,
 .email-editor-card textarea {
+  background: var(--cr-surface-subtle);
+  border-color: var(--cr-border);
+  border-radius: var(--cr-radius-lg);
+}
+
+/* Settings route */
+.settings-page-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--cr-bg);
+  padding: var(--cr-space-6);
+}
+.settings-card {
+  width: min(720px, 100%);
+  background: var(--cr-surface);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-lg);
+  box-shadow: var(--cr-shadow-xs);
+  padding: var(--cr-space-8);
+}
+.settings-card .chat-sidebar-brand {
+  justify-content: flex-start;
+}
+.settings-heading {
+  margin: var(--cr-space-6) 0;
+}
+.settings-heading h1 {
+  font-size: var(--cr-text-3xl);
+  margin-bottom: var(--cr-space-3);
+}
+.settings-card input,
+.settings-card textarea {
   background: var(--cr-surface-subtle);
   border-color: var(--cr-border);
   border-radius: var(--cr-radius-lg);

@@ -35,6 +35,7 @@ dataset, so the demo path always works.
 
 - `app/chat/` - main ColdReach-style chat UI
 - `app/email/` - drafted email review/send route
+- `app/settings/` - no-auth local outreach context used by draft generation
 - `app/demo/` - legacy redirects and shared demo draft helpers
 - `app/api/v1/` - structured narrow/hooks/enrich endpoints
 - `app/api/demo/chat/` - assistant-ui/Vercel AI SDK streaming transport target
@@ -51,6 +52,8 @@ dataset, so the demo path always works.
 - Drafts are stored in browser storage because the intelligence service remains
   stateless. `/api/email/send` forwards to `COLDREACH_SEND_URL` when configured,
   otherwise it records a safe demo send.
+- `/settings` lets the sender save project, goal, and opportunity context; the
+  coffee-chat intro uses that context plus the confirmed LinkedIn/X/public hook.
 
 ## Endpoints
 

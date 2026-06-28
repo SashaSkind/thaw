@@ -13,6 +13,7 @@ import {
   availableChannels,
   channelLabel,
   composeDraft,
+  DEFAULT_OUTREACH_SETTINGS,
   makeId,
   readDraftThread,
   saveDraftThread,
@@ -71,7 +72,15 @@ export default function EmailPage() {
 
   const regenerateDraft = (tone: Tone, channel: Channel) => {
     updateThread((current) => {
-      const draft = composeDraft(current.person, current.confirmedHook, tone, channel);
+      const draft = composeDraft(
+        current.person,
+        current.confirmedHook,
+        tone,
+        channel,
+        current.settings ?? DEFAULT_OUTREACH_SETTINGS,
+        current.confirmedHookSource ?? "confirmed hook",
+        current.recentContext,
+      );
       return { ...current, tone, channel, subject: draft.subject, body: draft.body };
     });
   };
@@ -195,6 +204,16 @@ export default function EmailPage() {
           <div className="section">
             <b>Warm hook</b>
             <p className="muted">{thread.confirmedHook}</p>
+          </div>
+          <div className="section">
+            <b>Your context</b>
+            <p className="muted">
+              {(thread.settings ?? DEFAULT_OUTREACH_SETTINGS).projectName}:{" "}
+              {(thread.settings ?? DEFAULT_OUTREACH_SETTINGS).outreachGoal}
+            </p>
+            <Link className="draft-back-link" href="/settings">
+              Edit settings
+            </Link>
           </div>
           {thread.angles.length > 0 && (
             <div className="section">

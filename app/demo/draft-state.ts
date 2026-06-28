@@ -31,8 +31,10 @@ export interface ProspectThread {
   status: ThreadStatus;
   person: ProspectPerson;
   confirmedHook: string;
+  confirmedHookSource: string;
   recentContext: string[];
   angles: string[];
+  settings: OutreachSettings;
   tone: Tone;
   channel: Channel;
   subject: string;
@@ -43,6 +45,26 @@ export interface ProspectThread {
 export const TONES: Tone[] = ["casual", "professional", "efficient"];
 
 const STORAGE_PREFIX = "coldreach-demo-draft";
+const SETTINGS_KEY = "coldreach-demo-settings";
+
+export interface OutreachSettings {
+  senderName: string;
+  projectName: string;
+  projectDescription: string;
+  outreachGoal: string;
+  opportunityContext: string;
+}
+
+export const DEFAULT_OUTREACH_SETTINGS: OutreachSettings = {
+  senderName: "Brandon",
+  projectName: "ColdReach",
+  projectDescription:
+    "a workflow that turns public context into thoughtful coffee-chat intros",
+  outreachGoal:
+    "how founder-led devtools teams think about warm outbound and developer education",
+  opportunityContext:
+    "whether there is a partnership, customer, or investor conversation worth exploring",
+};
 
 export function makeId(prefix: string): string {
   const id =
@@ -83,49 +105,114 @@ function splitEmailDraft(draft: string, fallbackSubject: string): DraftParts {
   };
 }
 
+function cleanHookText(confirmedHook: string, recentContext: string[] = []): string {
+  const withoutPrefix = confirmedHook
+    .replace(/^Recently posted:\s*/i, "")
+    .replace(/^Connection to\s+/i, "your connection to ")
+    .replace(/^MIT alum$/i, "your MIT founder background")
+    .replace(/^NYU alum$/i, "your NYU background")
+    .trim();
+  const unquoted = withoutPrefix
+    .replace(/^["“”]+|["“”]+$/g, "")
+    .replace(/…$/g, "")
+    .trim();
+  if (unquoted.length > 0) return unquoted;
+  return recentContext[0] ?? confirmedHook;
+}
+
+function sourceLabel(
+  person: ProspectPerson,
+  hookSource: string,
+): { phrase: string; link?: string } {
+  const source = hookSource.toLowerCase();
+  if (source.includes("linkedin")) {
+    return { phrase: "your LinkedIn post", link: person.linkedinUrl };
+  }
+  if (source.includes("x/") || source.includes(" x ") || source.includes("post news")) {
+    return { phrase: "your X post", link: person.xUrl };
+  }
+  if (source.includes("fiber")) {
+    if (person.linkedinUrl) {
+      return { phrase: "your LinkedIn post", link: person.linkedinUrl };
+    }
+    if (person.xUrl) return { phrase: "your X post", link: person.xUrl };
+  }
+  if (source.includes("interview")) return { phrase: "an interview" };
+  if (source.includes("profile")) return { phrase: "your public profile" };
+  return {
+    phrase: person.linkedinUrl ? "your LinkedIn profile" : "public context",
+    link: person.linkedinUrl,
+  };
+}
+
+function askLine(settings: OutreachSettings, tone: Tone): string {
+  if (tone === "efficient") {
+    return "Are you open to a quick chat?";
+  }
+  if (tone === "casual") {
+    return "Are you down for a quick chat?";
+  }
+  return "Would you be open to a quick chat?";
+}
+
 export function composeDraft(
   person: ProspectPerson,
   confirmedHook: string,
   tone: Tone,
   channel: Channel,
+  settings: OutreachSettings = readOutreachSettings(),
+  hookSource = "confirmed hook",
+  recentContext: string[] = [],
 ): DraftParts {
   const firstName = person.name.split(" ")[0] ?? person.name;
-  const hook = confirmedHook.replace(/\.$/, "");
-  const hookLower = hook.charAt(0).toLowerCase() + hook.slice(1);
-
-  const opener: Record<Tone, string> = {
-    casual: `Hey ${firstName} - noticed ${hookLower}, so I figured I'd reach out.`,
-    professional: `Hi ${firstName}, I came across your work at ${person.company} - and ${hookLower}.`,
-    efficient: `${firstName} - ${hook}.`,
-  };
-  const body: Record<Tone, string> = {
-    casual:
-      "I'm working on something that may be relevant to what you're building. Open to swapping notes over coffee or a quick virtual chat?",
-    professional: `I'd love to share something relevant to what you are focused on at ${person.company}. Would you be open to a short coffee chat?`,
-    efficient: `Built something relevant to ${person.company}. Worth a 10-minute coffee chat?`,
-  };
+  const hookTopic = cleanHookText(confirmedHook, recentContext);
+  const source = sourceLabel(person, hookSource);
+  const sourceSuffix = source.link ? ` (${source.link})` : "";
+  const contextLine = `I saw ${
+    source.phrase
+  }${sourceSuffix} about ${hookTopic.replace(/\.$/, "")}.`;
+  const projectLine = `I am building ${settings.projectName}, ${settings.projectDescription}.`;
+  const opportunityLine = `I wanted to talk about ${settings.outreachGoal}, and ${settings.opportunityContext}.`;
+  const closing = askLine(settings, tone);
   const signoff: Record<Tone, string> = {
-    casual: "Cheers!",
+    casual: "Best,",
     professional: "Best regards,",
     efficient: "Thanks,",
   };
 
   if (channel !== "email") {
+    const dmIntro = tone === "efficient" ? `${firstName} -` : `Hi ${firstName},`;
     return {
       subject: "",
-      body: `${opener[tone]} ${body[tone]}`,
+      body: `${dmIntro} ${contextLine} ${projectLine} ${closing}`,
     };
   }
 
   const subject: Record<Tone, string> = {
-    casual: `quick coffee chat re: ${person.company}`,
+    casual: `quick chat about ${person.company}`,
     professional: `Coffee chat with ${firstName}?`,
-    efficient: `${person.company} - 10 min?`,
+    efficient: `${person.company} - quick chat?`,
   };
   return splitEmailDraft(
-    `Subject: ${subject[tone]}\n\n${opener[tone]}\n\n${body[tone]}\n\n${signoff[tone]}\nColdReach`,
+    `Subject: ${subject[tone]}\n\nHi ${firstName},\n\n${contextLine}\n\n${projectLine} ${opportunityLine}\n\n${closing}\n\n${signoff[tone]}\n${settings.senderName}`,
     subject[tone],
   );
+}
+
+export function readOutreachSettings(): OutreachSettings {
+  if (typeof window === "undefined") return DEFAULT_OUTREACH_SETTINGS;
+  const raw = window.localStorage.getItem(SETTINGS_KEY);
+  if (!raw) return DEFAULT_OUTREACH_SETTINGS;
+  try {
+    return { ...DEFAULT_OUTREACH_SETTINGS, ...(JSON.parse(raw) as OutreachSettings) };
+  } catch {
+    return DEFAULT_OUTREACH_SETTINGS;
+  }
+}
+
+export function saveOutreachSettings(settings: OutreachSettings): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
 export function readDraftThread(draftId: string): ProspectThread | null {

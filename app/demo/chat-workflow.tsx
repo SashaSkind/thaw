@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
@@ -19,6 +20,7 @@ import {
   availableChannels,
   composeDraft,
   makeId,
+  readOutreachSettings,
   saveDraftThread,
   type ProspectThread,
 } from "./draft-state";
@@ -39,11 +41,16 @@ interface ChatMessage {
   draftPath?: string;
 }
 
+interface ConfirmedHookInput {
+  text: string;
+  source: string;
+}
+
 const INITIAL_SUGGESTIONS = [
+  "Hahnbee Lee Mintlify",
   "Michael Truell Cursor",
   "Founders building AI developer tools",
   "Founders at Series B fintechs in New York",
-  "YC founders hiring their first GTM lead",
 ];
 
 function delay(ms: number): Promise<void> {
@@ -283,8 +290,8 @@ function ChatWorkspace() {
     }
   };
 
-  const confirmHook = async (person: ProspectPerson, hook: string) => {
-    const confirmedHook = hook.trim();
+  const confirmHook = async (person: ProspectPerson, hook: ConfirmedHookInput) => {
+    const confirmedHook = hook.text.trim();
     if (!confirmedHook || isWorking) return;
 
     appendMessage({
@@ -320,7 +327,16 @@ function ChatWorkspace() {
         suggestedAngles: string[];
       };
       const channel = availableChannels(person)[0] ?? "email";
-      const draft = composeDraft(person, confirmedHook, "professional", channel);
+      const settings = readOutreachSettings();
+      const draft = composeDraft(
+        person,
+        confirmedHook,
+        "professional",
+        channel,
+        settings,
+        hook.source,
+        data.recentContext,
+      );
       const draftId = makeId("draft");
       const thread: ProspectThread = {
         id: draftId,
@@ -329,8 +345,10 @@ function ChatWorkspace() {
         status: "draft",
         person,
         confirmedHook,
+        confirmedHookSource: hook.source,
         recentContext: data.recentContext,
         angles: data.suggestedAngles,
+        settings,
         tone: "professional",
         channel,
         subject: draft.subject,
@@ -434,6 +452,13 @@ function ChatWorkspace() {
               <p className="faint">
                 Sent messages are reviewed and sent from the email page.
               </p>
+            </div>
+
+            <div className="sidebar-section sidebar-sent">
+              <div className="sidebar-kicker">Context</div>
+              <Link className="sidebar-settings-link" href="/settings">
+                Settings
+              </Link>
             </div>
 
             <div className="sidebar-user">
@@ -544,7 +569,7 @@ function MessageBubble({
   selectedPerson: ProspectPerson | null;
   onChoosePerson: (person: ProspectPerson) => void;
   onFindHooks: (person: ProspectPerson) => void;
-  onConfirmHook: (person: ProspectPerson, hook: string) => void;
+  onConfirmHook: (person: ProspectPerson, hook: ConfirmedHookInput) => void;
   onOpenDraft: (draftPath: string) => void;
 }) {
   const [customHook, setCustomHook] = useState("");
@@ -642,7 +667,7 @@ function MessageBubble({
               <button
                 key={hook.id}
                 className="hook"
-                onClick={() => onConfirmHook(person, hook.text)}
+                onClick={() => onConfirmHook(person, { text: hook.text, source: hook.source })}
                 disabled={isWorking}
                 type="button"
               >
@@ -663,7 +688,9 @@ function MessageBubble({
               />
               <button
                 className="btn small"
-                onClick={() => onConfirmHook(person, customHook)}
+                onClick={() =>
+                  onConfirmHook(person, { text: customHook, source: "user note" })
+                }
                 disabled={isWorking || !customHook.trim()}
                 type="button"
               >
