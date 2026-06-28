@@ -247,3 +247,25 @@ custom hook — never fabricated.
 **NOTE for Brandon:** narrow.ts/context.ts reconciled toward #7's data layer;
 #9's chat rides on top, and the curated `yc-fintech` floor was re-added under
 #7's cohort (Gate 1). Please confirm.
+
+### Step 6 — Definition of done: full Option C against the mock — DONE
+
+- ✅ `npm run typecheck`, `npm run lint`, `npm run build` (routes: `/`, `/chat`,
+  `/start`, `/handoff-status`, `/api/integration/*`, `/api/demo/{chat,stream}`,
+  `/api/v1/*`; NO `/api/email/send`).
+- ✅ `npm run test:integration` — token → session → profile → pending-draft →
+  deepLink, plus invalid-token 401 and no-session 401 (9/9).
+- ✅ End-to-end browser (chat UX): ColdReach handoff → `/start` → `/chat` →
+  targeting → prospect (Maya Chen, email) → find warm lead → custom hook →
+  finished draft ending in the sender closing `Warmly,/Jordan Lee/GTM Advisor`
+  → "Send via ColdReach" → ColdReach review → "Sent from your Gmail (demo)".
+- ✅ No-email path: a no-email prospect yields a channel-aware **DM** draft (no
+  Email channel, no Subject, button "Save to ColdReach →"); its deepLink renders
+  ColdReach's **Copy** button (not Send). Direct `/chat` visit (no handoff) →
+  pending-draft 401 with a clear message (guardrail working).
+- Fix applied during DoD: `narrow` now guarantees ≥1 email prospect stays in the
+  visible result (live Fiber + no-email cohort were outranking the curated floor).
+
+Guardrails verified: exactly ONE send path (Option C); no `gmail.send`/OAuth/token
+storage; no `COLDREACH_SEND_URL`; `/v1` routes unchanged; `lib/types.ts` additive
+only.
