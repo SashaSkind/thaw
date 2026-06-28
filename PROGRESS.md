@@ -269,3 +269,93 @@ custom hook — never fabricated.
 Guardrails verified: exactly ONE send path (Option C); no `gmail.send`/OAuth/token
 storage; no `COLDREACH_SEND_URL`; `/v1` routes unchanged; `lib/types.ts` additive
 only.
+
+### Persona sweep — research pipeline integrity — RUN (branch `test/persona-sweep`)
+
+Added `tests/personas.ts` and `tests/flow-runner.ts` for a headless Thaw sweep of
+`narrow -> hooks -> enrich` only. No drafting, ColdReach handoff, Gmail, or UI
+assertions are included.
+
+Run command:
+
+```bash
+node --env-file-if-exists=.env.local --import tsx tests/flow-runner.ts
+```
+
+Environment notes:
+- Dev server: `npm run dev` on `http://localhost:3000`, same instance for all calls.
+- Auth mode: open (`SERVICE_SHARED_SECRET` empty in the runner environment).
+- Live data: Fiber-backed search/social was available for this run; several personas
+  returned live Fiber search/context instead of purely curated-floor data.
+
+Result: **6/8 passed**, exit code `1` because the harness correctly exits non-zero
+when any persona branch fails.
+
+```text
+Persona sweep: http://localhost:3000/api/v1 (auth=open)
+
+[PASS] Student targeting a YC internship mentor — no-email-student
+  narrow=8 people source=live-fiber-search
+  selected=Henrique Dubugras at Brex (p_henrique_dubugras, no-email/linkedin/no-x, score=100)
+  hooks=5 primary=fiber
+  enrich=context:4 angles:3 primary=fiber
+
+[PASS] GTM engineer targeting a customer company — email-happy-path
+  narrow=8 people source=live-fiber-search
+  selected=Maya Chen at Northgate Pay (p_north_1, email/linkedin/x, score=100)
+  hooks=5 primary=fiber
+  enrich=context:4 angles:3 primary=fiber
+
+[PASS] Founder targeting an investor with rich social context — rich-social-founder-investor
+  narrow=8 people source=live-fiber-search
+  selected=Immad Akhund at Mercury (p_immad_akhund, no-email/no-linkedin/x, score=100)
+  hooks=4 primary=fiber
+  enrich=context:4 angles:3 primary=fiber
+
+[PASS] Career switcher with sparse context — sparse-career-switcher
+  narrow=8 people source=live-fiber-search
+  selected=Henrique Dubugras at Brex (p_henrique_dubugras, no-email/linkedin/no-x, score=97)
+  hooks=5 primary=fiber
+  enrich=context:4 angles:3 primary=fiber
+
+[PASS] Deliberately vague targeting prompt — vague-fallback
+  narrow=8 people source=live-fiber-search
+  selected=Henrique Dubugras at Brex (p_henrique_dubugras, no-email/linkedin/no-x, score=97)
+  hooks=5 primary=fiber
+  enrich=context:4 angles:3 primary=fiber
+
+[FAIL] Target expected to have no LinkedIn or X — empty-social
+  narrow=8 people source=live-fiber-search
+  selected=Henrique Dubugras at Brex (p_henrique_dubugras, no-email/linkedin/no-x, score=97)
+  hooks=5 primary=fiber
+  enrich=context:4 angles:3 primary=fiber
+  failure: expected at least one surfaced person with no LinkedIn and no X
+
+[FAIL] Impossible zero-candidate query — zero-candidates
+  narrow=8 people source=live-fiber-search
+  failure: expected clean empty people[] but got 8
+
+[PASS] Curated floor with email-mix guarantee — curated-floor-email-mix
+  narrow=8 people source=live-fiber-search
+  selected=Henrique Dubugras at Brex (p_henrique_dubugras, no-email/linkedin/no-x, score=97)
+  hooks=5 primary=fiber
+  enrich=context:4 angles:3 primary=fiber
+
+Persona sweep complete: 6/8 passed
+Failures:
+- Target expected to have no LinkedIn or X (empty-social)
+  - expected at least one surfaced person with no LinkedIn and no X
+- Impossible zero-candidate query (zero-candidates)
+  - expected clean empty people[] but got 8
+```
+
+Failure notes:
+1. `empty-social`: current `/v1/narrow` did not surface any prospect with both
+   `channels.linkedin === false` and `channels.x === false`; it fell back to
+   Fiber/cohort results instead. This is a branch-coverage gap, not a test crash.
+2. `zero-candidates`: current `/v1/narrow` always degrades to fallback people for
+   the impossible query, so the API does not currently expose a clean empty
+   `people[]` result for this branch.
+3. `curated-floor-email-mix`: passed the non-empty + email-visible assertion, but
+   this run still included live Fiber search results because live keys were
+   available. Re-run with Fiber disabled to observe a pure curated-floor path.
