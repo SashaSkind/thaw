@@ -79,9 +79,11 @@ async function main(): Promise<void> {
     { name: "people sorted by matchScore desc", pass: isSortedDesc(r1.people) },
     { name: "intent non-empty (structured criteria parsed)", pass: intentNonEmpty(r1) },
     {
-      name: "at least one person has a truthy email",
-      pass: r1.people.some((p) => Boolean(p.email)),
-      detail: `${r1.people.filter((p) => Boolean(p.email)).length} with email`,
+      name: "no unverified fallback emails are returned",
+      pass: r1.people.every(
+        (p) => !p.email || (p.emailStatus === "verified" && Boolean(p.emailSource)),
+      ),
+      detail: `${r1.people.filter((p) => Boolean(p.email)).length} verified emails`,
     },
   ]);
 

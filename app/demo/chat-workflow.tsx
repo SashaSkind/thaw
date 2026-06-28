@@ -49,6 +49,11 @@ interface ConfirmedHookInput {
   source: string;
 }
 
+interface ContactResponse {
+  person: ProspectPerson;
+  notes?: string[];
+}
+
 const INITIAL_SUGGESTIONS = [
   "Hahnbee Lee Mintlify",
   "Michael Truell Cursor",
@@ -86,6 +91,16 @@ function ThemeToggle() {
 
 function isResponseOk(response: Response): boolean {
   return response.status >= 200 && response.status < 300;
+}
+
+function removeUnverifiedEmail(person: ProspectPerson): ProspectPerson {
+  return {
+    ...person,
+    email: undefined,
+    emailStatus: "unavailable",
+    emailSource: "apollo",
+    channels: { ...person.channels, email: false },
+  };
 }
 
 function PersonChannels({ person }: { person: ProspectPerson }) {
@@ -229,18 +244,69 @@ function ChatWorkspace() {
     }
   };
 
-  const choosePerson = (person: ProspectPerson) => {
-    setSelectedPerson(person);
+  const choosePerson = async (person: ProspectPerson) => {
+    if (isWorking) return;
+
     appendMessage({
       role: "user",
       kind: "text",
       text: `Let's explore ${person.name} at ${person.company}.`,
     });
+    const progressId = appendMessage({
+      role: "assistant",
+      kind: "progress",
+      text: `Verifying ${person.name}`,
+      progress: [],
+    });
+    setIsWorking(true);
+
+    try {
+      await appendProgressStep(
+        progressId,
+        "Checking Apollo for a verified contact email.",
+      );
+
+      const response = await fetch("/api/v1/contact", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ person }),
+      });
+
+      if (!isResponseOk(response)) {
+        throw new Error(`Contact verification failed with status ${response.status}.`);
+      }
+
+      const data = (await response.json()) as ContactResponse;
+      const verifiedPerson = data.person;
+      setSelectedPerson(verifiedPerson);
+      await appendProgressStep(
+        progressId,
+        verifiedPerson.emailStatus === "verified"
+          ? "Apollo returned a verified email for this contact."
+          : "Apollo did not verify an email, so no fallback address will be shown.",
+      );
+      appendSelectedPerson(verifiedPerson);
+    } catch (error) {
+      const verifiedPerson = removeUnverifiedEmail(person);
+      setSelectedPerson(verifiedPerson);
+      await appendProgressStep(
+        progressId,
+        `Apollo verification was unavailable: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      appendSelectedPerson(verifiedPerson);
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const appendSelectedPerson = (person: ProspectPerson) => {
     appendMessage({
       role: "assistant",
       kind: "person",
       text:
-        "Good pick. I can now look for warm-lead context from recent posts, public profiles, and fallback signals.",
+        "Good pick. I verified contact-email availability before looking for warm-lead context from recent posts and public profiles.",
       person,
     });
   };
@@ -608,7 +674,15 @@ function MessageBubble({
                   X
                 </a>
               )}
-              {message.person.email && <span>{message.person.email}</span>}
+              {message.person.email && (
+                <span>
+                  {message.person.email}
+                  {message.person.emailStatus === "verified" ? " (Apollo verified)" : ""}
+                </span>
+              )}
+              {!message.person.email && message.person.emailSource === "apollo" && (
+                <span className="faint">email not verified by Apollo</span>
+              )}
             </div>
             <button
               className="btn small"

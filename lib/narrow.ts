@@ -11,9 +11,8 @@
  *
  * Data layer (Gate 1 decision, see PROGRESS.md): live Fiber → verified real
  * cohort → curated `lib/dataset/yc-fintech.ts` dataset as the always-present
- * STATIC floor. The curated floor is kept because the real cohort has no
- * email-channel people, and the demo needs the email/no-email mix; it cannot
- * fail on stage. Live/cohort results rank above the curated floor.
+ * STATIC floor. Live/cohort results rank above the curated floor. Static emails
+ * are stripped unless a trusted enrichment source has verified them.
  */
 
 import type {
@@ -95,6 +94,23 @@ function applyExactQueryBoost(
       ...person,
       matchScore: EXACT_QUERY_BOOST,
       evidence: `${person.name} at ${person.company} directly matches the search query.`,
+    };
+  });
+}
+
+function stripUnverifiedEmails(people: ProspectPerson[]): ProspectPerson[] {
+  return people.map((person) => {
+    const hasVerifiedEmail =
+      Boolean(person.email) &&
+      person.emailStatus === "verified" &&
+      Boolean(person.emailSource);
+    if (hasVerifiedEmail) return person;
+
+    return {
+      ...person,
+      email: undefined,
+      emailStatus: person.email ? "unavailable" : person.emailStatus,
+      channels: { ...person.channels, email: false },
     };
   });
 }
@@ -204,12 +220,9 @@ export async function narrow(req: NarrowRequest): Promise<NarrowResponse> {
   // fail). Ranked so it carries evidence + a score; sits below live/cohort.
   const curatedFloor = filterPeople(intent).map((p) => rankPerson(p, intent));
 
-  const merged = applyExactQueryBoost(
-    dedupePeople([...realPeople, ...curatedFloor]),
-    req.query,
-  ).sort(
-    (a, b) => b.matchScore - a.matchScore,
-  );
+  const merged = stripUnverifiedEmails(
+    applyExactQueryBoost(dedupePeople([...realPeople, ...curatedFloor]), req.query),
+  ).sort((a, b) => b.matchScore - a.matchScore);
 
   // Cache everyone so /v1/hooks + /v1/enrich can resolve identifiers.
   cachePeople(
@@ -225,15 +238,7 @@ export async function narrow(req: NarrowRequest): Promise<NarrowResponse> {
     })),
   );
 
-  let limited = merged.slice(0, limit);
-
-  // Gate 1: guarantee the email mix is visible for the demo. Live Fiber + the
-  // real cohort are all no-email and outrank the curated floor, so an email
-  // prospect can get sliced out — ensure at least one stays in the result.
-  if (limit > 0 && !limited.some((p) => p.channels.email)) {
-    const bestEmail = merged.find((p) => p.channels.email);
-    if (bestEmail) limited = [...limited.slice(0, limit - 1), bestEmail];
-  }
+  const limited = merged.slice(0, limit);
 
   return {
     intent,
