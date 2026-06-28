@@ -1,27 +1,54 @@
-// Minimal service index. The real demo UI is Brandon's separate, disposable
-// app (see AGENTS.md §9 — no UI in this repo). This is just a human-readable
-// status page for the stateless intelligence service.
+import Link from "next/link";
 
 export default function Home() {
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: 720, margin: "48px auto", padding: "0 20px", lineHeight: 1.5 }}>
-      <h1>ColdReach Intelligence Service</h1>
-      <p>
-        Stateless prospect-discovery layer. It researches; ColdReach acts. All
-        endpoints are versioned and require an <code>x-service-secret</code> header.
-      </p>
-      <h2>Endpoints</h2>
-      <ul>
-        <li>
-          <code>POST /api/v1/narrow</code> — broad targeting goal → ranked people + companies + parsed intent
-        </li>
-        <li>
-          <code>POST /api/v1/hooks</code> — hook candidates (stubbed; Brandon owns real impl)
-        </li>
-        <li>
-          <code>POST /api/v1/enrich</code> — recent context + angles (stubbed; Brandon owns real impl)
-        </li>
-      </ul>
+    <main className="shell">
+      <div className="topbar">
+        <div className="brand">
+          <span className="brand-dot" />
+          <div>
+            ColdReach Intelligence
+            <small>prospect discovery layer</small>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h1>Find the right person, then a real hook.</h1>
+        <p className="muted">
+          ColdReach knows <i>how</i> to write the email. This service finds{" "}
+          <i>who</i> to reach and a genuine human hook — same hometown, shared
+          school, a recent post — then hands off to ColdReach&apos;s drafting.
+        </p>
+
+        <div className="hero-points">
+          <div className="pt">
+            <b>Broad goal → ranked people.</b>{" "}
+            <span className="muted">
+              Describe who you want to reach; get specific, ranked candidates.
+            </span>
+          </div>
+          <div className="pt">
+            <b>Human-in-the-loop hooks.</b>{" "}
+            <span className="muted">
+              The service proposes hooks; you confirm the real one. Never
+              auto-injected.
+            </span>
+          </div>
+          <div className="pt">
+            <b>Ingredients, not prose.</b>{" "}
+            <span className="muted">
+              Returns recent context + angles. ColdReach drafts and sends.
+            </span>
+          </div>
+        </div>
+
+        <div className="row">
+          <Link className="btn" href="/demo">
+            Launch the demo →
+          </Link>
+        </div>
+      </div>
     </main>
   );
 }
