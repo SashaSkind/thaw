@@ -217,3 +217,33 @@ Brought from #9: streaming chat UX (`app/demo/chat-workflow.tsx`,
 NOT brought: `app/api/email/send`, `app/email/[draftId]`,
 `app/demo/drafts/[draftId]`, `app/settings`, `app/demo/draft-state.ts`, and #9's
 `lib/narrow|context|rank|dataset|apollo` changes. typecheck + lint green.
+
+### Step 3 — Delete #9's competing send path — DONE (none present)
+
+Because Step 2 was selective, #9's send route + local pages were never brought.
+Verified absent on disk: `app/api/email/send/route.ts`, `app/email/`,
+`app/demo/drafts/`, `app/settings/page.tsx`, `app/demo/draft-state.ts`.
+`git grep` for `COLDREACH_SEND_URL`, `api/email/send`, `draft-state`, `/email/`,
+`/demo/drafts`, `/settings` in tracked source → **zero references**.
+`COLDREACH_SEND_URL` is not present in any env file (only `COLDREACH_URL`).
+
+### Step 4 — Single Option-C send path — DONE
+
+Exactly one send path in the repo: `DraftView` →
+`POST /api/integration/pending-draft` → `postPendingDraft()`
+(`lib/coldreach-integration.ts`) → `{ deepLink }` → redirect into ColdReach,
+which sends from the user's own session. No route forwards email anywhere; no
+Thaw code touches `gmail.send`/OAuth/tokens (verified by grep).
+
+### Step 5 — Reconcile `lib/narrow.ts` + `lib/context.ts` — DONE
+
+Decision applied: the **#7 data-layer version wins as the base**; #9's chat UX
+rides on top (it consumes `/v1/narrow|hooks|enrich`, not its own retrieval).
+#9's `lib/narrow.ts`/`lib/context.ts`/`lib/rank.ts`/`lib/dataset`/`lib/apollo`
+changes were NOT brought. `context.ts` resolves people via `people-cache`
+(populated by `narrow` for both the cohort and the curated floor) + the static
+cohort; hooks/enrich return grounded results or fall back to the human-confirmed
+custom hook — never fabricated.
+**NOTE for Brandon:** narrow.ts/context.ts reconciled toward #7's data layer;
+#9's chat rides on top, and the curated `yc-fintech` floor was re-added under
+#7's cohort (Gate 1). Please confirm.
