@@ -190,3 +190,15 @@ deduped + ranked. The curated floor is always included so the on-stage email and
 no-email paths both work, per PRD ("use the curated dataset for the live demo
 path even if Fiber is wired in"). NOTE for Brandon: this re-introduces the
 synthetic dataset that #7 intentionally dropped — logged here, not silent.
+
+### Step 1 — Base: #7 data layer + #8 handoff + #10 tests — DONE
+
+Merged `overnight/test-harness` (brings #8 handoff + #10 mock/tests/failure-UX)
+and #7 (`coldreach-intel-brandon-slice-2330`) onto `integration/final`. Conflicts
+resolved: `.env.example` (kept the integration block; added `COLDREACH_URL` /
+`INTEGRATION_SHARED_SECRET`), `app/demo/components/DraftView.tsx` (kept #8's
+canonical Send→`postPendingDraft` version; dropped #7's older `composeDraft`),
+`PROGRESS.md` (kept both sections). Applied Gate 1 fallback chain in
+`lib/narrow.ts`: live Fiber → real cohort → curated `yc-fintech` floor (ranked,
+deduped); all results cached for hooks/enrich. `/v1` stays JSON-only/stateless/no
+Gmail/no send. `npm run typecheck` green.

@@ -42,8 +42,10 @@ export function ProspectResults({
             <div>
               <div className="name">{person.name}</div>
               <div className="role">
-                {person.title} · {person.company}
-                {person.location ? ` · ${person.location}` : ""}
+                {[person.title, person.company, person.location]
+                  .map((s) => s?.trim())
+                  .filter(Boolean)
+                  .join(" · ")}
               </div>
               <div className="evidence">{person.evidence}</div>
               <Channels person={person} />

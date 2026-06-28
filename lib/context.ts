@@ -10,6 +10,7 @@
 import { getBio } from "@/lib/apollo";
 import { getRecentPosts, type FiberPerson } from "@/lib/fiber";
 import { getCuratedPerson } from "@/lib/mock-data";
+import { resolvePerson } from "@/lib/people-cache";
 import type { ContextSignal } from "@/lib/ai";
 
 export interface GatheredContext {
@@ -20,16 +21,19 @@ export interface GatheredContext {
 }
 
 export async function gatherContext(personId: string): Promise<GatheredContext> {
+  // Resolve identifiers: live-search people come from the short-lived cache;
+  // verified cohort people come from the static dataset.
+  const cached = resolvePerson(personId);
   const person = getCuratedPerson(personId);
+  const identifiers = cached ?? person;
   const notes: string[] = [];
 
-  // Build the Fiber person handle from whatever we know (curated record here).
-  const fiberPerson: FiberPerson | null = person
+  const fiberPerson: FiberPerson | null = identifiers
     ? {
-        name: person.name,
-        company: person.company,
-        linkedinUrl: person.linkedinUrl,
-        xUrl: person.xUrl,
+        name: identifiers.name,
+        company: identifiers.company,
+        linkedinUrl: identifiers.linkedinUrl,
+        xUrl: identifiers.xUrl,
       }
     : null;
 
