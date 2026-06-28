@@ -12,6 +12,12 @@
  * bio + a couple of public-style posts/news lines per person). The fallback
  * hook extractor only ever surfaces text grounded in these snippets and tags it
  * with its `source`; it never invents shared hometowns/schools (anti-hallucination).
+ *
+ * REAL PEOPLE: the first entries (`REAL_PEOPLE`) are real, public fintech figures
+ * with verified LinkedIn slugs / X handles, so the live Fiber path returns their
+ * ACTUAL recent posts in the demo. Their fallback `context.signals` are left empty
+ * on purpose — we never fabricate personal hooks for real people; live Fiber data
+ * supplies the grounded signals. If Fiber is down, hooks correctly returns few/none.
  */
 
 import type { ProspectPerson } from "@/lib/types";
@@ -27,7 +33,83 @@ export interface CuratedPerson extends ProspectPerson {
   context: PersonContext;
 }
 
-export const CURATED_PEOPLE: CuratedPerson[] = [
+/**
+ * Real, public fintech figures with verified live-data identifiers (confirmed
+ * against Fiber's LinkedIn `profile-posts` / X `user-tweets` endpoints). These
+ * light up the live Fiber path in the demo with genuine recent posts.
+ */
+export const REAL_PEOPLE: CuratedPerson[] = [
+  {
+    id: "p_henrique_dubugras",
+    name: "Henrique Dubugras",
+    title: "Co-founder & CEO",
+    company: "Brex",
+    companyId: "c_brex",
+    location: "San Francisco, CA",
+    linkedinUrl: "https://www.linkedin.com/in/henriquedubugras",
+    evidence:
+      "Co-founder of Brex (YC S17 fintech); posts about building and company strategy on LinkedIn.",
+    matchScore: 97,
+    channels: { email: false, linkedin: true, x: false },
+    context: {
+      bio: "Co-founder & CEO of Brex; previously co-founded Pagar.me. (public profile)",
+      signals: [],
+    },
+  },
+  {
+    id: "p_immad_akhund",
+    name: "Immad Akhund",
+    title: "Co-founder & CEO",
+    company: "Mercury",
+    companyId: "c_mercury",
+    location: "San Francisco, CA",
+    xUrl: "https://x.com/immad",
+    evidence:
+      "Founder/CEO of Mercury (fintech for startups) and active seed investor; posts founder learnings on X.",
+    matchScore: 96,
+    channels: { email: false, linkedin: false, x: true },
+    context: {
+      bio: "Co-founder & CEO of Mercury; prior founder (Heyzap, YC W11) and angel investor. (public profile)",
+      signals: [],
+    },
+  },
+  {
+    id: "p_patrick_collison",
+    name: "Patrick Collison",
+    title: "Co-founder & CEO",
+    company: "Stripe",
+    companyId: "c_stripe",
+    location: "San Francisco, CA",
+    xUrl: "https://x.com/patrickc",
+    evidence:
+      "Co-founder & CEO of Stripe (payments infrastructure); posts on technology, science, and progress on X.",
+    matchScore: 95,
+    channels: { email: false, linkedin: false, x: true },
+    context: {
+      bio: "Co-founder & CEO of Stripe. (public profile)",
+      signals: [],
+    },
+  },
+  {
+    id: "p_zach_perret",
+    name: "Zach Perret",
+    title: "Co-founder & CEO",
+    company: "Plaid",
+    companyId: "c_plaid",
+    location: "San Francisco, CA",
+    xUrl: "https://x.com/zachperret",
+    evidence:
+      "Co-founder & CEO of Plaid (financial data connectivity); posts on fintech and company building on X.",
+    matchScore: 94,
+    channels: { email: false, linkedin: false, x: true },
+    context: {
+      bio: "Co-founder & CEO of Plaid. (public profile)",
+      signals: [],
+    },
+  },
+];
+
+const DEMO_PEOPLE: CuratedPerson[] = [
   {
     id: "p_amara_okafor",
     name: "Amara Okafor",
@@ -193,6 +275,12 @@ export const CURATED_PEOPLE: CuratedPerson[] = [
     },
   },
 ];
+
+/**
+ * Real public figures first (so the live Fiber path is front-and-center in the
+ * demo), then the fictional fintech demo dataset.
+ */
+export const CURATED_PEOPLE: CuratedPerson[] = [...REAL_PEOPLE, ...DEMO_PEOPLE];
 
 const PEOPLE_BY_ID = new Map(CURATED_PEOPLE.map((p) => [p.id, p]));
 
