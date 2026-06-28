@@ -12,7 +12,7 @@
  */
 
 import { guard } from "@/lib/http";
-import { rankCuratedPeople } from "@/lib/mock-data";
+import { narrowPeople } from "@/lib/narrow";
 import type { NarrowResponse } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -58,12 +58,16 @@ export async function POST(request: Request): Promise<Response> {
         controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       };
 
+      // Kick off the real Fiber-backed narrow while we narrate, so the live API
+      // call overlaps the loading animation.
+      const narrowing = narrowPeople(goal || "fintech founders");
+
       for (const text of NARRATION_STEPS) {
         send({ type: "step", text });
         await sleep(850);
       }
 
-      const people = rankCuratedPeople(goal);
+      const { people } = await narrowing;
       const result: NarrowResponse = {
         intent: {
           goal,
@@ -71,9 +75,9 @@ export async function POST(request: Request): Promise<Response> {
             ? `Targeting people related to: ${goal}`
             : "Targeting top fintech prospects",
         },
-        companies: Array.from(new Set(people.map((p) => p.company))).map(
-          (name) => ({ name }),
-        ),
+        companies: Array.from(
+          new Set(people.map((p) => p.company).filter(Boolean)),
+        ).map((name) => ({ name })),
         people,
       };
       send({ type: "result", data: result });

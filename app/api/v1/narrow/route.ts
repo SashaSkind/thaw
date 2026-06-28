@@ -1,15 +1,14 @@
 /**
- * POST /v1/narrow — MOCK (Sasha owns the real one).
+ * POST /v1/narrow — stand-in for Sasha's endpoint.
  *
- * STATUS: local stand-in per AGENTS.md ("mock its response if Sasha hasn't
- * pushed yet"). Returns ranked curated people so Brandon's demo UI has data to
- * render. Replace with Sasha's real endpoint when it lands — the response shape
- * already matches `NarrowResponse`.
+ * Returns REAL people only: live Fiber `peopleSearch` results for the goal plus a
+ * verified real fintech cohort (never fabricated prospects). Response shape
+ * matches `NarrowResponse`. Replace with Sasha's real endpoint when it lands.
  */
 
 import { z } from "zod";
 import { badRequest, guard, json } from "@/lib/http";
-import { rankCuratedPeople } from "@/lib/mock-data";
+import { narrowPeople } from "@/lib/narrow";
 import type { NarrowResponse } from "@/lib/types";
 
 const NarrowRequestSchema = z.object({
@@ -32,17 +31,19 @@ export async function POST(request: Request): Promise<Response> {
     return badRequest(parsed.error.issues.map((i) => i.message).join("; "));
   }
 
-  const people = rankCuratedPeople(parsed.data.goal);
+  const result = await narrowPeople(parsed.data.goal);
 
-  const response: NarrowResponse = {
+  const response: NarrowResponse & { source: string; notes: string[] } = {
     intent: {
       goal: parsed.data.goal,
       understood: `Targeting people related to: ${parsed.data.goal}`,
     },
-    companies: Array.from(new Set(people.map((p) => p.company))).map((name) => ({
-      name,
-    })),
-    people,
+    companies: Array.from(
+      new Set(result.people.map((p) => p.company).filter(Boolean)),
+    ).map((name) => ({ name })),
+    people: result.people,
+    source: result.source,
+    notes: result.notes,
   };
 
   return json(response);
