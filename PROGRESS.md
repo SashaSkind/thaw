@@ -126,3 +126,27 @@ edits to `lib/coldreach-integration.ts`, `app/start`, `app/api/integration/*`,
 plus `GET /api/external/handoff` and a `/mint` test helper. Verified standalone:
 valid token → profile; missing token → 401; pending-draft → `{ draftId, deepLink }`;
 expired token → 401.
+
+### Task 2 — Automated integration tests — DONE
+
+`scripts/integration-handoff.test.mjs` (new; dependency-free, uses the mock
+in-process) + `npm run test:integration`. Drives the full handoff against the
+running Thaw server: token → session → profile → pending-draft → deepLink, plus
+invalid-token 401 and no-session 401. Also added `npm run mock:coldreach`.
+
+Prereq (same model as `scripts/smoke.ts`): Thaw dev server running with the same
+`INTEGRATION_SHARED_SECRET` and `COLDREACH_URL` pointing at the mock port; the
+test starts the mock or reuses one already on the port. Result:
+
+```
+  [PASS] minted handoff token
+  [PASS] session: 200 + ok
+  [PASS] session: identity carried — name=Jordan Lee
+  [PASS] profile: resume/comments/emailClosing present
+  [PASS] session: httpOnly handoff cookie set
+  [PASS] pending-draft: 200 + deepLink
+  [PASS] deepLink: ColdReach renders stored draft
+  [PASS] invalid token -> session 401
+  [PASS] no session -> pending-draft 401
+ALL CHECKS PASSED
+```

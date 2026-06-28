@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "fiber:spike": "tsx scripts/fiber-spike.ts"
+    "fiber:spike": "tsx scripts/fiber-spike.ts",
+    "mock:coldreach": "node mocks/coldreach/server.mjs",
+    "test:integration": "node --env-file-if-exists=.env.local scripts/integration-handoff.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.2",
