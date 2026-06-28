@@ -183,6 +183,16 @@ export const COMPANIES: ProspectCompany[] = [
     matchReason:
       "AI-native code editor from Anysphere, founded by Michael Truell and MIT classmates",
   },
+  {
+    id: "co_mintlify",
+    name: "Mintlify",
+    domain: "mintlify.com",
+    category: "devtools",
+    location: "San Francisco, CA",
+    stage: "growth",
+    matchReason:
+      "Developer documentation platform co-founded by Hahnbee Lee and Han Wang",
+  },
 ];
 
 const COMPANY_BY_ID: Record<string, ProspectCompany> = Object.fromEntries(
@@ -268,6 +278,8 @@ const PEOPLE_SEED: PersonSeed[] = [
   { id: "p_oak_2", name: "Gabriel Mensah", title: "Co-Founder & CTO", companyId: "co_oakfield", linkedinUrl: "https://linkedin.com/in/gabrielmensah" },
   // Cursor / Anysphere
   { id: "p_michael_truell", name: "Michael Truell", title: "Co-Founder & CEO", companyId: "co_cursor", email: "hiring@cursor.com", linkedinUrl: "https://www.linkedin.com/in/michael-t-5b1bbb122", xUrl: "https://x.com/mntruell" },
+  // Mintlify
+  { id: "p_hahnbee_lee", name: "Hahnbee Lee", title: "Co-Founder & CTO", companyId: "co_mintlify", email: "hello@mintlify.com", linkedinUrl: "https://www.linkedin.com/in/hahnbee-lee", xUrl: "https://x.com/hahnbeeIee" },
 ];
 
 export const PEOPLE: ProspectPerson[] = PEOPLE_SEED.map((s) => {

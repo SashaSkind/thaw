@@ -100,6 +100,26 @@ function datasetFallbackSignals(datasetPerson: NonNullable<ReturnType<typeof get
     ];
   }
 
+  if (datasetPerson.id === "p_hahnbee_lee") {
+    return [
+      {
+        text:
+          "Hahnbee Lee is the co-founder and CTO of Mintlify, a developer documentation platform she co-founded in 2022.",
+        source: "public profile news",
+      },
+      {
+        text:
+          "Hahnbee has spoken publicly about documentation quality, including helping developers get to their goal quickly and separating knowledge from instruction.",
+        source: "docs interview news",
+      },
+      {
+        text:
+          "Mintlify powers documentation for fast-growing developer companies and focuses on beautiful, optimized public-facing docs.",
+        source: "public company profile",
+      },
+    ];
+  }
+
   const signals: ContextSignal[] = [
     {
       text: `${datasetPerson.name} is ${datasetPerson.title} at ${
