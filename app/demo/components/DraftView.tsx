@@ -28,30 +28,49 @@ function channelLabel(channel: Channel): string {
   return "X DM";
 }
 
-/** Local stand-in for ColdReach's drafting — composes from the ingredients. */
+/**
+ * Local stand-in for ColdReach's drafting. Renders a NATURAL message from the
+ * ingredients — note it does NOT paste the suggested angles verbatim (those are
+ * ColdReach's drafting input, shown separately); it uses the confirmed hook and
+ * a short value line derived from the prospect. Tone changes the voice; channel
+ * changes the format (email = subject + sign-off; DM = one tight line).
+ */
 function composeDraft(
   person: ProspectPerson,
   confirmedHook: string,
-  angles: string[],
   tone: Tone,
   channel: Channel,
 ): string {
   const firstName = person.name.split(" ")[0];
-  const angle = angles[0] ?? "I think there could be a strong fit here.";
+  const hook = confirmedHook.replace(/\.$/, "");
+  const hookLower = hook.charAt(0).toLowerCase() + hook.slice(1);
+
   const opener: Record<Tone, string> = {
-    casual: `Hey ${firstName} — ${confirmedHook.toLowerCase()}, so I had to reach out.`,
-    professional: `Hi ${firstName}, ${confirmedHook} — which is partly why I'm reaching out.`,
-    efficient: `${firstName} — ${confirmedHook}.`,
+    casual: `Hey ${firstName} — noticed ${hookLower}, so I figured I'd reach out.`,
+    professional: `Hi ${firstName}, I came across your work at ${person.company} — and ${hookLower}.`,
+    efficient: `${firstName} — ${hook}.`,
   };
   const body: Record<Tone, string> = {
-    casual: `${angle} Would love to swap notes if you're open to it.`,
-    professional: `${angle} Would you be open to a brief conversation?`,
-    efficient: `${angle} Worth a quick chat?`,
+    casual: `I'm working on something I think could genuinely help with what you're building. Open to swapping notes this week?`,
+    professional: `I'd love to share something relevant to what you're focused on at ${person.company}. Would you be open to a short conversation?`,
+    efficient: `Built something relevant to ${person.company}. Worth 10 minutes?`,
+  };
+  const signoff: Record<Tone, string> = {
+    casual: "Cheers!",
+    professional: "Best regards,",
+    efficient: "Thanks,",
   };
 
   if (channel === "email") {
-    return `Subject: Quick note for ${firstName}\n\n${opener[tone]}\n\n${body[tone]}\n\n— Sent via ColdReach`;
+    const subject: Record<Tone, string> = {
+      casual: `quick idea for ${person.company}`,
+      professional: `A relevant note for ${firstName} at ${person.company}`,
+      efficient: `${person.company} — 10 min?`,
+    };
+    return `Subject: ${subject[tone]}\n\n${opener[tone]}\n\n${body[tone]}\n\n${signoff[tone]}\n— Sent via ColdReach`;
   }
+
+  // LinkedIn / X DM: one tight line, no subject.
   return `${opener[tone]} ${body[tone]}`;
 }
 
@@ -73,7 +92,7 @@ export function DraftView({
   const [channel, setChannel] = useState<Channel>(channels[0] ?? "email");
   const [sent, setSent] = useState(false);
 
-  const draft = composeDraft(person, confirmedHook, angles, tone, channel);
+  const draft = composeDraft(person, confirmedHook, tone, channel);
 
   return (
     <div className="card">

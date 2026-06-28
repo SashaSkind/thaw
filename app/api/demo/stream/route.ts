@@ -60,7 +60,7 @@ export async function POST(request: Request): Promise<Response> {
 
       for (const text of NARRATION_STEPS) {
         send({ type: "step", text });
-        await sleep(450);
+        await sleep(650);
       }
 
       const people = rankCuratedPeople(goal);
