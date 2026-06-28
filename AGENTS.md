@@ -40,11 +40,15 @@ Standard scripts live in `package.json` (`dev`, `build`, `start`, `lint`,
   are slow (~tens of seconds) and **cost credits** — keep test volume low.
   With `FIBER_API_KEY` set, `pnpm fiber:spike` prints "✅ REAL SOCIAL"; with it
   unset it prints "⚠️ PIVOT TO FALLBACK" (also the expected/working outcome).
-- **`lib/mock-data.ts` ships `REAL_PEOPLE`** (real public fintech founders —
-  Dubugras/Akhund/Collison/Perret) with verified LinkedIn slugs / X handles, so
-  the live Fiber path returns their ACTUAL posts in the demo. Their fallback
-  `context.signals` are intentionally empty (never fabricate hooks for real
-  people); fictional `DEMO_PEOPLE` keep curated signals for the offline fallback.
+- **No fabricated prospects.** `/v1/narrow` (`lib/narrow.ts`, a stand-in for
+  Sasha's) returns REAL people only: live Fiber `peopleSearch` results for the
+  goal plus a verified real fintech cohort (`REAL_PEOPLE` in `lib/mock-data.ts`,
+  Dubugras/Akhund/Collison/Perret). Every returned person is cached in
+  `lib/people-cache.ts` (short-lived, in-process, id → identifiers) so
+  `/v1/hooks` + `/v1/enrich` can fetch that person's actual posts. The cohort's
+  `context.signals` are intentionally empty — never fabricate hooks for real
+  people; live Fiber supplies the grounded signals. If Fiber is unconfigured,
+  narrow returns just the verified cohort (still real), never invented people.
 - **Auth runs in OPEN mode unless `SERVICE_SHARED_SECRET` is set.** The demo UI
   calls its own `/v1` endpoints without a header and relies on open mode; if you
   set the secret, you must send the `x-service-secret` header on every `/v1` call.
