@@ -1,52 +1,39 @@
-// app/api/v1/hooks/route.ts  — STUB for Brandon
-// Real auth + Zod validation, but returns realistic mock JSON matching the
-// HooksResponse contract so the demo UI / integration aren't blocked.
-// TODO(Brandon): real impl (Fiber AI hook discovery).
+/**
+ * POST /v1/hooks — Brandon owns this (replaces Sasha's stub).
+ * auth -> Zod-validate HooksRequest -> findHooks -> JSON.
+ */
 
-import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireSecret } from "@/lib/auth";
+import { badRequest, guard, json } from "@/lib/http";
+import { findHooks } from "@/lib/hooks";
 import type { HooksResponse } from "@/lib/types";
 
-const hooksRequestSchema = z.object({
+const HooksRequestSchema = z.object({
   personId: z.string().min(1, "personId is required"),
 });
 
-export async function POST(req: Request) {
-  const unauthorized = requireSecret(req);
-  if (unauthorized) return unauthorized;
+export async function POST(request: Request): Promise<Response> {
+  const blocked = guard(request);
+  if (blocked) return blocked;
 
   let body: unknown;
   try {
-    body = await req.json();
+    body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    return badRequest("invalid JSON body");
   }
 
-  const parsed = hooksRequestSchema.safeParse(body);
+  const parsed = HooksRequestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid request body.", details: parsed.error.flatten() },
-      { status: 400 },
-    );
+    return badRequest(parsed.error.issues.map((i) => i.message).join("; "));
   }
 
-  const mock: HooksResponse = {
-    hooks: [
-      {
-        id: "hook_mock_1",
-        text: "Also went through YC — congrats on the recent Series B.",
-        source: "mock:company_news",
-        needsUserConfirmation: true,
-      },
-      {
-        id: "hook_mock_2",
-        text: "Loved your recent post on payments fraud tooling.",
-        source: "mock:linkedin_post",
-        needsUserConfirmation: true,
-      },
-    ],
+  const result = await findHooks(parsed.data.personId);
+  const response: HooksResponse & { primarySource: string; notes: string[] } = {
+    hooks: result.hooks,
+    primarySource: result.primarySource,
+    notes: result.notes,
   };
 
-  return NextResponse.json(mock);
+  return json(response);
 }
