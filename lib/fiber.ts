@@ -34,6 +34,9 @@ export interface FiberPerson {
   email?: string;
   linkedinUrl?: string;
   xUrl?: string;
+  slug?: string;
+  /** Fiber relevance score for the search query (used for ranking). */
+  relevanceScore?: number;
 }
 
 export interface FiberCompany {
@@ -261,12 +264,25 @@ export async function getRecentPosts(
 interface PeopleSearchResponse {
   output?: {
     data?: {
-      full_name?: string | null;
       name?: string | null;
+      full_name?: string | null;
       headline?: string | null;
-      linkedin_url?: string | null;
+      primary_slug?: string | null;
+      slugs?: (string | null)[] | null;
+      url?: string | null;
+      inferred_location?: string | null;
+      locality?: string | null;
+      relevance_score?: number | null;
     }[];
   };
+}
+
+/** Derive a company name from a LinkedIn headline like "Founder at Acme". */
+function companyFromHeadline(headline?: string | null): string | undefined {
+  if (!headline) return undefined;
+  const atMatch = headline.match(/\bat\s+(.+?)(?:\s*[|·]|$)/i);
+  if (atMatch) return atMatch[1].trim();
+  return undefined;
 }
 
 export async function getPeople(
@@ -276,12 +292,21 @@ export async function getPeople(
     searchParams: { keywords: { anyOf: [criteria.query] } },
   });
   const people: FiberPerson[] = (res.data?.output?.data ?? [])
-    .slice(0, criteria.limit ?? 10)
-    .map((p) => ({
-      name: p.full_name ?? p.name ?? "Unknown",
-      title: p.headline ?? undefined,
-      linkedinUrl: p.linkedin_url ?? undefined,
-    }));
+    .slice(0, criteria.limit ?? 12)
+    .map((p) => {
+      const slug = p.primary_slug ?? p.slugs?.find(Boolean) ?? undefined;
+      return {
+        name: p.name ?? p.full_name ?? "Unknown",
+        title: p.headline ?? undefined,
+        company: companyFromHeadline(p.headline),
+        location: p.inferred_location ?? p.locality ?? undefined,
+        slug: slug ?? undefined,
+        linkedinUrl: slug
+          ? `https://www.linkedin.com/in/${slug}`
+          : p.url ?? undefined,
+        relevanceScore: p.relevance_score ?? undefined,
+      } satisfies FiberPerson;
+    });
   return { available: res.available, reason: res.reason, data: people };
 }
 
