@@ -173,6 +173,25 @@ export const COMPANIES: ProspectCompany[] = [
     stage: "series_b",
     matchReason: "NYC insurtech, Series B, fintech-adjacent",
   },
+  {
+    id: "co_cursor",
+    name: "Cursor",
+    domain: "cursor.com",
+    category: "devtools",
+    location: "San Francisco, CA",
+    stage: "growth",
+    matchReason:
+      "AI-native code editor from Anysphere, founded by Michael Truell and MIT classmates",
+  },
+  {
+    id: "co_mintlify",
+    name: "Mintlify",
+    domain: "mintlify.com",
+    category: "devtools",
+    location: "San Francisco, CA",
+    stage: "growth",
+    matchReason: "Developer documentation platform co-founded by Hahnbee Lee",
+  },
 ];
 
 const COMPANY_BY_ID: Record<string, ProspectCompany> = Object.fromEntries(
@@ -256,6 +275,9 @@ const PEOPLE_SEED: PersonSeed[] = [
   // Oakfield Insurance (insurtech, NYC)
   { id: "p_oak_1", name: "Teresa Lindgren", title: "Co-Founder & CEO", companyId: "co_oakfield", email: "teresa@oakfield.com", linkedinUrl: "https://linkedin.com/in/teresalindgren" },
   { id: "p_oak_2", name: "Gabriel Mensah", title: "Co-Founder & CTO", companyId: "co_oakfield", linkedinUrl: "https://linkedin.com/in/gabrielmensah" },
+  // Devtools demo contacts
+  { id: "p_michael_truell", name: "Michael Truell", title: "Co-Founder & CEO", companyId: "co_cursor", email: "hiring@cursor.com", linkedinUrl: "https://www.linkedin.com/in/michael-t-5b1bbb122", xUrl: "https://x.com/mntruell" },
+  { id: "p_hahnbee_lee", name: "Hahnbee Lee", title: "Co-Founder & CTO", companyId: "co_mintlify", email: "hello@mintlify.com", linkedinUrl: "https://www.linkedin.com/in/hahnbee-lee", xUrl: "https://x.com/hahnbeeIee" },
 ];
 
 export const PEOPLE: ProspectPerson[] = PEOPLE_SEED.map((s) => {

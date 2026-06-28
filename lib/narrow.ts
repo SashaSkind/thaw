@@ -47,6 +47,7 @@ function dedupePeople(people: ProspectPerson[]): ProspectPerson[] {
 }
 
 const DEFAULT_LIMIT = 8;
+const EXACT_QUERY_BOOST = 100;
 
 export interface NarrowPeopleResult {
   people: ProspectPerson[];
@@ -61,6 +62,41 @@ function slugId(slug: string): string {
 
 function slugFromLinkedin(linkedinUrl?: string): string | undefined {
   return linkedinUrl?.match(/\/in\/([^/?#]+)/i)?.[1];
+}
+
+function normalizedText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function hasExactQueryMatch(person: ProspectPerson, query: string): boolean {
+  const normalizedQuery = normalizedText(query);
+  if (!normalizedQuery) return false;
+
+  const fullName = normalizedText(person.name);
+  const company = normalizedText(person.company);
+  const nameParts = fullName.split(" ").filter(Boolean);
+  const allNamePartsMatch =
+    nameParts.length > 0 && nameParts.every((part) => normalizedQuery.includes(part));
+
+  return (
+    (fullName.length > 0 && normalizedQuery.includes(fullName)) ||
+    (company.length > 0 && normalizedQuery.includes(company)) ||
+    (allNamePartsMatch && company.length > 0 && normalizedQuery.includes(company))
+  );
+}
+
+function applyExactQueryBoost(
+  people: ProspectPerson[],
+  query: string,
+): ProspectPerson[] {
+  return people.map((person) => {
+    if (!hasExactQueryMatch(person, query)) return person;
+    return {
+      ...person,
+      matchScore: EXACT_QUERY_BOOST,
+      evidence: `${person.name} at ${person.company} directly matches the search query.`,
+    };
+  });
 }
 
 /** Map Fiber's relevance score (a small positive float) into a 0..100 match. */
@@ -168,7 +204,10 @@ export async function narrow(req: NarrowRequest): Promise<NarrowResponse> {
   // fail). Ranked so it carries evidence + a score; sits below live/cohort.
   const curatedFloor = filterPeople(intent).map((p) => rankPerson(p, intent));
 
-  const merged = dedupePeople([...realPeople, ...curatedFloor]).sort(
+  const merged = applyExactQueryBoost(
+    dedupePeople([...realPeople, ...curatedFloor]),
+    req.query,
+  ).sort(
     (a, b) => b.matchScore - a.matchScore,
   );
 

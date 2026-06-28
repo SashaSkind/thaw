@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "fiber:spike": "tsx scripts/fiber-spike.ts",
+    "fiber:spike": "node --env-file-if-exists=.env.local --import tsx scripts/fiber-spike.ts",
     "mock:coldreach": "node mocks/coldreach/server.mjs",
     "test:integration": "node --env-file-if-exists=.env.local scripts/integration-handoff.test.mjs"
   },
