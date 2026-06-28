@@ -202,3 +202,18 @@ canonical Send→`postPendingDraft` version; dropped #7's older `composeDraft`),
 `lib/narrow.ts`: live Fiber → real cohort → curated `yc-fintech` floor (ranked,
 deduped); all results cached for hooks/enrich. `/v1` stays JSON-only/stateless/no
 Gmail/no send. `npm run typecheck` green.
+
+### Step 2 — Fold in ONLY #9's wanted pieces — DONE
+
+Brought from #9: streaming chat UX (`app/demo/chat-workflow.tsx`,
+`app/api/demo/chat/route.ts`, `app/chat/page.tsx`), dark mode/theme
+(`app/globals.css`, `app/providers.tsx`), landing/redirect (`app/page.tsx`,
+`app/demo/page.tsx` → `/chat`), additive `ProspectPerson.emailStatus` /
+`emailSource` (`lib/types.ts`), and deps `@assistant-ui/react` +
+`@assistant-ui/react-ai-sdk`. **Rewired** `chat-workflow.tsx`: dropped its
+`draft-state` import and local `/email` navigation; the draft step now renders
+#8's `DraftView` (composes finished text via `lib/draft.ts`, Sends via
+`postPendingDraft`), reads the handoff `sender` from session storage.
+NOT brought: `app/api/email/send`, `app/email/[draftId]`,
+`app/demo/drafts/[draftId]`, `app/settings`, `app/demo/draft-state.ts`, and #9's
+`lib/narrow|context|rank|dataset|apollo` changes. typecheck + lint green.
