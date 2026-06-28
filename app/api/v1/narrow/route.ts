@@ -1,50 +1,45 @@
-/**
- * POST /v1/narrow — stand-in for Sasha's endpoint.
- *
- * Returns REAL people only: live Fiber `peopleSearch` results for the goal plus a
- * verified real fintech cohort (never fabricated prospects). Response shape
- * matches `NarrowResponse`. Replace with Sasha's real endpoint when it lands.
- */
+// app/api/v1/narrow/route.ts  — SASHA owns (real)
+// POST -> requireSecret -> Zod validate -> narrow() -> JSON.
 
+import { NextResponse } from "next/server";
 import { z } from "zod";
-import { badRequest, guard, json } from "@/lib/http";
-import { narrowPeople } from "@/lib/narrow";
-import type { NarrowResponse } from "@/lib/types";
+import { requireSecret } from "@/lib/auth";
+import { narrow } from "@/lib/narrow";
+import type { NarrowRequest } from "@/lib/types";
 
-const NarrowRequestSchema = z.object({
-  goal: z.string().min(1, "goal is required"),
+const narrowRequestSchema = z.object({
+  query: z.string().min(1, "query is required"),
+  userBackground: z.string().optional(),
+  limit: z.number().int().positive().max(50).optional(),
 });
 
-export async function POST(request: Request): Promise<Response> {
-  const blocked = guard(request);
-  if (blocked) return blocked;
+export async function POST(req: Request) {
+  const unauthorized = requireSecret(req);
+  if (unauthorized) return unauthorized;
 
   let body: unknown;
   try {
-    body = await request.json();
+    body = await req.json();
   } catch {
-    return badRequest("invalid JSON body");
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const parsed = NarrowRequestSchema.safeParse(body);
+  const parsed = narrowRequestSchema.safeParse(body);
   if (!parsed.success) {
-    return badRequest(parsed.error.issues.map((i) => i.message).join("; "));
+    return NextResponse.json(
+      { error: "Invalid request body.", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
-  const result = await narrowPeople(parsed.data.goal);
-
-  const response: NarrowResponse & { source: string; notes: string[] } = {
-    intent: {
-      goal: parsed.data.goal,
-      understood: `Targeting people related to: ${parsed.data.goal}`,
-    },
-    companies: Array.from(
-      new Set(result.people.map((p) => p.company).filter(Boolean)),
-    ).map((name) => ({ name })),
-    people: result.people,
-    source: result.source,
-    notes: result.notes,
-  };
-
-  return json(response);
+  try {
+    const result = await narrow(parsed.data as NarrowRequest);
+    return NextResponse.json(result);
+  } catch (err) {
+    console.error("[/v1/narrow] unexpected error:", err);
+    return NextResponse.json(
+      { error: "Internal error while narrowing prospects." },
+      { status: 500 },
+    );
+  }
 }
