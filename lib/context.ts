@@ -73,31 +73,60 @@ export async function gatherContext(personId: string): Promise<GatheredContext> 
       signals.push({ text: signal.text, source: signal.source });
     }
   } else if (datasetPerson) {
-    signals.push({
+    signals.push(...datasetFallbackSignals(datasetPerson));
+  }
+
+  return { signals, primarySource: "fallback", notes };
+}
+
+function datasetFallbackSignals(datasetPerson: NonNullable<ReturnType<typeof getPersonById>>): ContextSignal[] {
+  if (datasetPerson.id === "p_michael_truell") {
+    return [
+      {
+        text:
+          "Michael Truell is the co-founder and CEO of Anysphere, the company behind Cursor, and co-founded it after graduating from MIT.",
+        source: "public profile news",
+      },
+      {
+        text:
+          "In a Decoder interview, Michael described Cursor as building the best way to code with AI after the team pivoted back from mechanical engineering.",
+        source: "The Verge Decoder interview news",
+      },
+      {
+        text:
+          "A public X post referenced Cursor partnering with SpaceX to scale Composer as part of building the best place to code with AI.",
+        source: "public X post news",
+      },
+    ];
+  }
+
+  const signals: ContextSignal[] = [
+    {
       text: `${datasetPerson.name} is ${datasetPerson.title} at ${
         datasetPerson.company
       }${datasetPerson.location ? ` in ${datasetPerson.location}` : ""}. ${
         datasetPerson.evidence
       }`,
       source: "curated dataset profile",
+    },
+  ];
+
+  if (datasetPerson.linkedinUrl) {
+    signals.push({
+      text: `${datasetPerson.name} has a LinkedIn profile tied to ${
+        datasetPerson.company
+      } and ${datasetPerson.title.toLowerCase()} work.`,
+      source: "curated LinkedIn profile",
     });
-    if (datasetPerson.linkedinUrl) {
-      signals.push({
-        text: `${datasetPerson.name} has a LinkedIn profile tied to ${
-          datasetPerson.company
-        } and ${datasetPerson.title.toLowerCase()} work.`,
-        source: "curated LinkedIn profile",
-      });
-    }
-    if (datasetPerson.xUrl) {
-      signals.push({
-        text: `${datasetPerson.name} has an X profile connected to ${
-          datasetPerson.company
-        } and fintech founder/operator topics.`,
-        source: "curated X profile",
-      });
-    }
+  }
+  if (datasetPerson.xUrl) {
+    signals.push({
+      text: `${datasetPerson.name} has an X profile connected to ${
+        datasetPerson.company
+      } and founder/operator topics.`,
+      source: "curated X profile",
+    });
   }
 
-  return { signals, primarySource: "fallback", notes };
+  return signals;
 }

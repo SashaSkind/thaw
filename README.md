@@ -7,7 +7,8 @@ The service _researches_; ColdReach _acts_ (drafting + sending).
 
 The `/demo` route now presents this as a chat-first coffee-chat workflow:
 target in one large composer, pick from ranked contacts, confirm a warm hook
-from social/context signals, then edit/send from a sidebar draft chat.
+from social/context signals, then continue to a standalone draft page for
+editing/sending.
 
 See [`AGENTS.md`](./AGENTS.md) for the full build spec and architecture.
 
@@ -33,12 +34,21 @@ dataset, so the demo path always works.
 
 ## Folder structure
 
-- `app/demo/` - chat-first coffee-chat demo UI
+- `app/demo/` - chat-first coffee-chat demo UI and standalone draft page
 - `app/api/v1/` - structured narrow/hooks/enrich endpoints
 - `app/api/demo/chat/` - assistant-ui/Vercel AI SDK streaming transport target
 - `lib/` - backend clients, parsing, ranking, context, and shared types
 - `lib/dataset/` - curated fallback prospect data
 - `scripts/` - smoke and integration helpers
+
+## Demo UI
+
+- Light mode mirrors trycoldreach.app's warm neutral system (`#f5f4f0`
+  background, white cards, black primary buttons, subtle borders).
+- Dark mode uses matching component tokens and can be toggled from the chat and
+  draft pages.
+- Drafts are stored in browser storage for the demo because the intelligence
+  service remains stateless.
 
 ## Endpoints
 

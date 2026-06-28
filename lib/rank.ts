@@ -18,6 +18,7 @@ const WEIGHTS = {
   hasEmail: 10,
   hasSocial: 5,
   specificityMax: 10,
+  directQuery: 65,
 } as const;
 
 interface Hits {
@@ -92,6 +93,33 @@ function clamp(n: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, n));
 }
 
+function directQueryScore(
+  person: ProspectPerson,
+  intent: TargetingIntent,
+  company?: ProspectCompany,
+): number {
+  const tokens = intent.rawQuery
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 2);
+  if (tokens.length === 0) return 0;
+
+  const haystack = [
+    person.name,
+    person.title,
+    person.company,
+    company?.name ?? "",
+    company?.domain ?? "",
+    company?.category ?? "",
+  ]
+    .join(" ")
+    .toLowerCase();
+  const matches = tokens.filter((token) => haystack.includes(token)).length;
+  if (matches === 0) return 0;
+
+  return Math.round((matches / tokens.length) * WEIGHTS.directQuery);
+}
+
 /** Score a person 0..100 against the parsed intent. */
 export function scorePerson(
   person: ProspectPerson,
@@ -106,6 +134,7 @@ export function scorePerson(
   if (hits.stage) score += WEIGHTS.stage;
   if (hits.hasEmail) score += WEIGHTS.hasEmail;
   if (hits.hasSocial) score += WEIGHTS.hasSocial;
+  score += directQueryScore(person, intent, company);
 
   // Specificity bonus: reward matching more of the *requested* criteria.
   const requested = [
@@ -160,6 +189,10 @@ export function buildEvidence(
     sentence += " — reachable on X (no email)";
   } else {
     sentence += " — no direct channel found";
+  }
+
+  if (directQueryScore(person, intent, company) >= 40) {
+    sentence = `Direct match for "${intent.rawQuery}" — ${sentence}`;
   }
 
   return sentence;
