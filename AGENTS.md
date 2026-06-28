@@ -32,9 +32,19 @@ Standard scripts live in `package.json` (`dev`, `build`, `start`, `lint`,
   grounded fallback data, so `pnpm dev` + the full `/demo` flow work with no
   `.env.local`. Optional keys (`OPENAI_API_KEY`, `FIBER_API_KEY`, `APOLLO_API_KEY`,
   `SERVICE_SHARED_SECRET`) only upgrade live data — see `.env.example`.
-- **The Fiber spike intentionally resolves to the FALLBACK branch when
-  `FIBER_API_KEY` is unset** (`pnpm fiber:spike` prints "⚠️ PIVOT TO FALLBACK").
-  That is the expected/working outcome here, not a failure.
+- **Fiber is wired to the real API** (`https://api.fiber.ai`, discovered via its
+  `/llms.txt` + `/ai-docs/<operationId>.md`). Key facts (see `lib/fiber.ts`):
+  auth = API key in the JSON **body** as `apiKey` (we also send `x-api-key`);
+  recent posts come from LinkedIn `POST /v1/linkedin-live-fetch/profile-posts`
+  (by slug/URL) and X `POST /v1/twitter/user-tweets` (by handle). Live fetches
+  are slow (~tens of seconds) and **cost credits** — keep test volume low.
+  With `FIBER_API_KEY` set, `pnpm fiber:spike` prints "✅ REAL SOCIAL"; with it
+  unset it prints "⚠️ PIVOT TO FALLBACK" (also the expected/working outcome).
+- **`lib/mock-data.ts` ships `REAL_PEOPLE`** (real public fintech founders —
+  Dubugras/Akhund/Collison/Perret) with verified LinkedIn slugs / X handles, so
+  the live Fiber path returns their ACTUAL posts in the demo. Their fallback
+  `context.signals` are intentionally empty (never fabricate hooks for real
+  people); fictional `DEMO_PEOPLE` keep curated signals for the offline fallback.
 - **Auth runs in OPEN mode unless `SERVICE_SHARED_SECRET` is set.** The demo UI
   calls its own `/v1` endpoints without a header and relies on open mode; if you
   set the secret, you must send the `x-service-secret` header on every `/v1` call.

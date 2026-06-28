@@ -27,13 +27,16 @@ pnpm dev            # http://localhost:3000  (demo at /demo)
 
 Every layer **degrades gracefully without API keys**, so the full flow runs
 end-to-end with zero configuration (demo-safe by design). Add keys in
-`.env.local` (see `.env.example`) to enable live data:
+`.env.local` (see `.env.example`) to enable live data. With `FIBER_API_KEY` set,
+the dataset's real fintech founders (`REAL_PEOPLE` in `lib/mock-data.ts`) return
+their **actual** recent LinkedIn/X posts; fictional demo people fall back to the
+curated dataset.
 
 | Env var                 | Purpose                                   | Without it                                  |
 | ----------------------- | ----------------------------------------- | ------------------------------------------- |
 | `SERVICE_SHARED_SECRET` | `x-service-secret` header auth on `/v1/*` | Open demo mode (auth skipped)               |
 | `OPENAI_API_KEY`        | Hook extraction + angle generation        | Deterministic grounded heuristic fallback   |
-| `FIBER_API_KEY`         | Primary social/data (recent posts)        | News/Apollo/curated dataset fallback        |
+| `FIBER_API_KEY`         | Live LinkedIn/X posts (real data)         | News/Apollo/curated dataset fallback        |
 | `APOLLO_API_KEY`        | Bio/contact fallback                      | Curated dataset only                        |
 
 ## Scripts
