@@ -21,8 +21,8 @@ the service proposes, the user confirms (anti-hallucination).
 ## Run locally
 
 ```bash
-pnpm install
-pnpm dev            # http://localhost:3000  (demo at /demo)
+npm install
+npm run dev         # http://localhost:3000  (demo at /demo)
 ```
 
 Every layer **degrades gracefully without API keys**, so the full flow runs
@@ -43,12 +43,12 @@ curated dataset.
 
 | Command            | What it does                                          |
 | ------------------ | ----------------------------------------------------- |
-| `pnpm dev`         | Start the dev server (Turbopack)                      |
-| `pnpm build`       | Production build                                      |
-| `pnpm start`       | Serve the production build                            |
-| `pnpm lint`        | ESLint (flat config)                                  |
-| `pnpm typecheck`   | `tsc --noEmit`                                         |
-| `pnpm fiber:spike` | Run the Fiber spike (Task 0 decision gate)            |
+| `npm run dev`        | Start the dev server (Turbopack)                    |
+| `npm run build`      | Production build                                     |
+| `npm start`          | Serve the production build                          |
+| `npm run lint`       | ESLint (flat config)                                |
+| `npm run typecheck`  | `tsc --noEmit`                                       |
+| `npm run fiber:spike`| Run the Fiber spike (Task 0 decision gate)          |
 
 ## Endpoints
 

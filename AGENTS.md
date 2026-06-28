@@ -23,13 +23,14 @@ the Fiber spike (`lib/fiber.ts`), `/v1/hooks` + `/v1/enrich`, and the demo UI
 ## Build / lint / test / run
 
 Standard scripts live in `package.json` (`dev`, `build`, `start`, `lint`,
-`typecheck`, `fiber:spike`). Use `pnpm`. `pnpm dev` serves the app on
-`http://localhost:3000`; the demo flow is at `/demo`.
+`typecheck`, `fiber:spike`). The project uses **npm** (`package-lock.json`).
+`npm run dev` serves the app on `http://localhost:3000`; the demo flow is at
+`/demo`.
 
 ## Cursor Cloud specific instructions
 
 - **Zero keys required to run or demo.** Every layer degrades to deterministic,
-  grounded fallback data, so `pnpm dev` + the full `/demo` flow work with no
+  grounded fallback data, so `npm run dev` + the full `/demo` flow work with no
   `.env.local`. Optional keys (`OPENAI_API_KEY`, `FIBER_API_KEY`, `APOLLO_API_KEY`,
   `SERVICE_SHARED_SECRET`) only upgrade live data — see `.env.example`.
 - **Fiber is wired to the real API** (`https://api.fiber.ai`, discovered via its
@@ -38,7 +39,7 @@ Standard scripts live in `package.json` (`dev`, `build`, `start`, `lint`,
   recent posts come from LinkedIn `POST /v1/linkedin-live-fetch/profile-posts`
   (by slug/URL) and X `POST /v1/twitter/user-tweets` (by handle). Live fetches
   are slow (~tens of seconds) and **cost credits** — keep test volume low.
-  With `FIBER_API_KEY` set, `pnpm fiber:spike` prints "✅ REAL SOCIAL"; with it
+  With `FIBER_API_KEY` set, `npm run fiber:spike` prints "✅ REAL SOCIAL"; with it
   unset it prints "⚠️ PIVOT TO FALLBACK" (also the expected/working outcome).
 - **No fabricated prospects.** `/v1/narrow` (`lib/narrow.ts`, a stand-in for
   Sasha's) returns REAL people only: live Fiber `peopleSearch` results for the
@@ -52,8 +53,8 @@ Standard scripts live in `package.json` (`dev`, `build`, `start`, `lint`,
 - **Auth runs in OPEN mode unless `SERVICE_SHARED_SECRET` is set.** The demo UI
   calls its own `/v1` endpoints without a header and relies on open mode; if you
   set the secret, you must send the `x-service-secret` header on every `/v1` call.
-- **Lint is plain ESLint, not `next lint`** (removed in Next 16). `pnpm lint`
-  runs `eslint .`. The flat config imports `eslint-config-next/core-web-vitals`
+- **Lint is plain ESLint, not `next lint`** (removed in Next 16). `npm run lint`
+  runs `eslint`. The flat config imports `eslint-config-next/core-web-vitals`
   and `eslint-config-next/typescript` **directly** (native flat configs) — do
   NOT route them through `FlatCompat`, which throws a circular-structure error
   with this version.
