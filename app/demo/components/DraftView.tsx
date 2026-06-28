@@ -42,7 +42,7 @@ function composeDraft(
   channel: Channel,
 ): string {
   const firstName = person.name.split(" ")[0];
-  const hook = confirmedHook.replace(/\.$/, "");
+  const hook = confirmedHook.trim().replace(/[.?!]+$/, "");
   const hookLower = hook.charAt(0).toLowerCase() + hook.slice(1);
   const company = person.company?.trim();
   const atCompany = company ? ` at ${company}` : "";
