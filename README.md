@@ -5,10 +5,9 @@ It takes a broad targeting goal (e.g. _"founders at YC fintechs in NYC, Series B
 and returns **ranked, specific people with reasons** as structured JSON.
 The service _researches_; ColdReach _acts_ (drafting + sending).
 
-The `/demo` route now presents this as a chat-first coffee-chat workflow:
-target in one large composer, pick from ranked contacts, confirm a warm hook
-from social/context signals, then continue to a standalone draft page for
-editing/sending.
+The `/chat` route is the main ColdReach-style chat workflow: start in a centered
+Claude-like composer, pick from ranked contacts, confirm a warm hook, then
+continue to `/email/[draftId]` for editing/sending.
 
 See [`AGENTS.md`](./AGENTS.md) for the full build spec and architecture.
 
@@ -34,7 +33,9 @@ dataset, so the demo path always works.
 
 ## Folder structure
 
-- `app/demo/` - chat-first coffee-chat demo UI and standalone draft page
+- `app/chat/` - main ColdReach-style chat UI
+- `app/email/` - drafted email review/send route
+- `app/demo/` - legacy redirects and shared demo draft helpers
 - `app/api/v1/` - structured narrow/hooks/enrich endpoints
 - `app/api/demo/chat/` - assistant-ui/Vercel AI SDK streaming transport target
 - `lib/` - backend clients, parsing, ranking, context, and shared types
@@ -43,12 +44,13 @@ dataset, so the demo path always works.
 
 ## Demo UI
 
-- Light mode mirrors trycoldreach.app's warm neutral system (`#f5f4f0`
-  background, white cards, black primary buttons, subtle borders).
+- Light mode follows the supplied ColdReach tokens (`#F6F4EF` canvas,
+  `#F2F0E9` sidebar, white cards, black primary buttons, periwinkle accents).
 - Dark mode uses matching component tokens and can be toggled from the chat and
-  draft pages.
-- Drafts are stored in browser storage for the demo because the intelligence
-  service remains stateless.
+  email pages.
+- Drafts are stored in browser storage because the intelligence service remains
+  stateless. `/api/email/send` forwards to `COLDREACH_SEND_URL` when configured,
+  otherwise it records a safe demo send.
 
 ## Endpoints
 

@@ -1,9 +1,7 @@
-"use client";
+/** Legacy demo route forwards to the main chat page. */
 
-/** Demo route now hosts the chat-first coffee-chat workflow. */
-
-import { ChatWorkflow } from "./chat-workflow";
+import { redirect } from "next/navigation";
 
 export default function DemoPage() {
-  return <ChatWorkflow />;
+  redirect("/chat");
 }

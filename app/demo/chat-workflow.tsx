@@ -108,15 +108,7 @@ function ChatWorkflowShell() {
 
 function ChatWorkspace() {
   const router = useRouter();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      kind: "text",
-      text:
-        "Tell me who you want a coffee chat with. I will find contact options, help you choose a warm hook, then send the draft to its own editing page.",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isWorking, setIsWorking] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<ProspectPerson | null>(
@@ -127,6 +119,7 @@ function ChatWorkspace() {
   >([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const hasStarted = messages.length > 0;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -344,7 +337,7 @@ function ChatWorkspace() {
         body: draft.body,
         sentEmails: [],
       };
-      const draftPath = `/demo/drafts/${draftId}`;
+      const draftPath = `/email/${draftId}`;
 
       saveDraftThread(thread);
       setDraftLinks((current) => [
@@ -360,7 +353,7 @@ function ChatWorkspace() {
         role: "assistant",
         kind: "draft",
         text:
-          "Draft created. I am sending this to a standalone draft page so you can edit the email before sending.",
+          "Draft created. I am sending this to the email page so you can review and send it.",
         person,
         draftPath,
       });
@@ -385,7 +378,7 @@ function ChatWorkspace() {
         id: makeId("msg"),
         role: "assistant",
         kind: "text",
-        text: "New coffee-chat workflow started. Who should we look for?",
+        text: "New chat started. Who should we find for your coffee chat?",
       },
     ]);
     setInput("");
@@ -393,7 +386,7 @@ function ChatWorkspace() {
   };
 
   return (
-    <main className="chat-app-shell">
+    <main className={`chat-app-shell ${hasStarted ? "started" : "empty"}`}>
       <aside className={`chat-sidebar ${isSidebarCollapsed ? "collapsed" : ""}`}>
         <button
           className="sidebar-toggle"
@@ -406,15 +399,20 @@ function ChatWorkspace() {
 
         {!isSidebarCollapsed && (
           <>
+            <div className="chat-sidebar-brand">
+              <span className="paper-plane-mark">▱</span>
+              <span>ColdReach</span>
+              <small>BETA</small>
+            </div>
             <div className="sidebar-section">
-              <div className="sidebar-kicker">Chats</div>
               <button className="new-chat-btn" onClick={resetConversation} type="button">
                 + New search chat
               </button>
+              <div className="sidebar-kicker">Drafts</div>
               <div className="thread-list">
                 {draftLinks.length === 0 && (
                   <p className="faint">
-                    Draft pages appear here after you confirm a hook.
+                    Draft requests appear after you confirm a hook.
                   </p>
                 )}
                 {draftLinks.map((draft) => (
@@ -432,27 +430,50 @@ function ChatWorkspace() {
             </div>
 
             <div className="sidebar-section sidebar-sent">
-              <div className="sidebar-kicker">Workflow</div>
+              <div className="sidebar-kicker">Emails</div>
               <p className="faint">
-                Search in chat. Drafting happens on a separate page after hook
-                confirmation.
+                Sent messages are reviewed and sent from the email page.
               </p>
+            </div>
+
+            <div className="sidebar-user">
+              <span className="avatar-pill">B</span>
+              <span>Brandon</span>
             </div>
           </>
         )}
       </aside>
 
       <section className="chat-main">
-        <div className="topbar chat-topbar">
-          <div className="brand">
-            <span className="brand-dot" />
-            <div>
-              ColdReach Coffee Chat
-              <small>target - contact - warm lead - draft page</small>
+        {!hasStarted && (
+          <div className="chat-open-state">
+            <div className="chat-open-brand">
+              <span className="paper-plane-mark large">▱</span>
+              <span>ColdReach</span>
+              <small>BETA</small>
+            </div>
+            <h1>Who do you want to reach?</h1>
+            <p className="muted">
+              Ask for a person, company, or segment. I will find the contact,
+              surface a warm hook, and move the draft to email.
+            </p>
+            <div className="suggestions">
+              {INITIAL_SUGGESTIONS.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  className="chip"
+                  onClick={() => runNarrow(suggestion)}
+                  disabled={isWorking}
+                  type="button"
+                >
+                  {suggestion}
+                </button>
+              ))}
             </div>
           </div>
-          <ThemeToggle />
-        </div>
+        )}
+
+        {hasStarted && <ThemeToggle />}
 
         <div className="chat-thread" aria-live="polite">
           {messages.map((message) => (
@@ -470,30 +491,7 @@ function ChatWorkspace() {
           <div ref={bottomRef} />
         </div>
 
-        <div className="chat-composer-wrap">
-          {messages.length <= 1 && (
-            <div className="chat-hero">
-              <h1>Who should we set up a coffee chat with?</h1>
-              <p className="muted">
-                Start with a person, company, or segment. I will find contacts,
-                warm hooks, and then open a dedicated draft page.
-              </p>
-              <div className="suggestions">
-                {INITIAL_SUGGESTIONS.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    className="chip"
-                    onClick={() => runNarrow(suggestion)}
-                    disabled={isWorking}
-                    type="button"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
+        <div className={`chat-composer-wrap ${hasStarted ? "docked" : "centered"}`}>
           <form
             className="chat-composer"
             onSubmit={(event) => {
@@ -504,12 +502,26 @@ function ChatWorkspace() {
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder='Try "Michael Truell Cursor"'
+              placeholder={
+                hasStarted
+                  ? "Press Enter to send · Shift+Enter for new line"
+                  : 'Try "Michael Truell Cursor"'
+              }
               rows={2}
               disabled={isWorking}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || event.shiftKey) return;
+                event.preventDefault();
+                runNarrow(input);
+              }}
             />
-            <button className="btn" disabled={isWorking || !input.trim()} type="submit">
-              {isWorking ? "Working..." : "Send"}
+            <button
+              className="composer-send"
+              disabled={isWorking || !input.trim()}
+              type="submit"
+              aria-label="Send"
+            >
+              ↑
             </button>
           </form>
         </div>
@@ -664,16 +676,13 @@ function MessageBubble({
         {message.kind === "draft" && message.draftPath && (
           <div className="draft-handoff-card">
             <b>Draft page created</b>
-            <p className="faint">
-              The email is ready to edit on its own page, matching the ColdReach
-              draft-and-send flow.
-            </p>
+            <p className="faint">Open email to review the draft and send.</p>
             <button
               className="btn small"
               onClick={() => onOpenDraft(message.draftPath as string)}
               type="button"
             >
-              Open draft page
+              Open email →
             </button>
           </div>
         )}
