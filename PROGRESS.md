@@ -150,3 +150,16 @@ test starts the mock or reuses one already on the port. Result:
   [PASS] no session -> pending-draft 401
 ALL CHECKS PASSED
 ```
+
+### Task 3 — Failure UX (new components/states only) — DONE
+
+`app/handoff-status/HandoffStatus.tsx` (client) + `app/handoff-status/page.tsx`
+(preview/target route). Three states with a retry action:
+`coldreach-unreachable`, `token-expired` (states the 15-min TTL), and a generic
+`error`. Reuses existing CSS classes; no globals.css change.
+
+NOTE (per constraints): these are ADDITIVE, standalone surfaces and are **not
+wired into the working /start flow** — wiring would require editing `app/start`,
+which was explicitly out of scope for this branch. They are ready to wire (e.g.
+the flow can redirect to `/handoff-status?state=token-expired`). Verified all
+three render in the browser at `/handoff-status?state=...`.
