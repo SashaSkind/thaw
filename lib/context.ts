@@ -10,6 +10,7 @@
 import { getBio } from "@/lib/apollo";
 import { getRecentPosts, type FiberPerson } from "@/lib/fiber";
 import { getCuratedPerson } from "@/lib/mock-data";
+import { getPersonById } from "@/lib/dataset/yc-fintech";
 import type { ContextSignal } from "@/lib/ai";
 
 export interface GatheredContext {
@@ -21,15 +22,17 @@ export interface GatheredContext {
 
 export async function gatherContext(personId: string): Promise<GatheredContext> {
   const person = getCuratedPerson(personId);
+  const datasetPerson = person ? undefined : getPersonById(personId);
+  const prospect = person ?? datasetPerson;
   const notes: string[] = [];
 
   // Build the Fiber person handle from whatever we know (curated record here).
-  const fiberPerson: FiberPerson | null = person
+  const fiberPerson: FiberPerson | null = prospect
     ? {
-        name: person.name,
-        company: person.company,
-        linkedinUrl: person.linkedinUrl,
-        xUrl: person.xUrl,
+        name: prospect.name,
+        company: prospect.company,
+        linkedinUrl: prospect.linkedinUrl,
+        xUrl: prospect.xUrl,
       }
     : null;
 
@@ -69,7 +72,81 @@ export async function gatherContext(personId: string): Promise<GatheredContext> 
     for (const signal of person.context.signals) {
       signals.push({ text: signal.text, source: signal.source });
     }
+  } else if (datasetPerson) {
+    signals.push(...datasetFallbackSignals(datasetPerson));
   }
 
   return { signals, primarySource: "fallback", notes };
+}
+
+function datasetFallbackSignals(datasetPerson: NonNullable<ReturnType<typeof getPersonById>>): ContextSignal[] {
+  if (datasetPerson.id === "p_michael_truell") {
+    return [
+      {
+        text:
+          "Michael Truell is the co-founder and CEO of Anysphere, the company behind Cursor, and co-founded it after graduating from MIT.",
+        source: "public profile news",
+      },
+      {
+        text:
+          "In a Decoder interview, Michael described Cursor as building the best way to code with AI after the team pivoted back from mechanical engineering.",
+        source: "The Verge Decoder interview news",
+      },
+      {
+        text:
+          "A public X post referenced Cursor partnering with SpaceX to scale Composer as part of building the best place to code with AI.",
+        source: "public X post news",
+      },
+    ];
+  }
+
+  if (datasetPerson.id === "p_hahnbee_lee") {
+    return [
+      {
+        text:
+          "Hahnbee Lee is the co-founder and CTO of Mintlify, a developer documentation platform she co-founded in 2022.",
+        source: "public profile news",
+      },
+      {
+        text:
+          "Hahnbee has spoken publicly about documentation quality, including helping developers get to their goal quickly and separating knowledge from instruction.",
+        source: "docs interview news",
+      },
+      {
+        text:
+          "Mintlify powers documentation for fast-growing developer companies and focuses on beautiful, optimized public-facing docs.",
+        source: "public company profile",
+      },
+    ];
+  }
+
+  const signals: ContextSignal[] = [
+    {
+      text: `${datasetPerson.name} is ${datasetPerson.title} at ${
+        datasetPerson.company
+      }${datasetPerson.location ? ` in ${datasetPerson.location}` : ""}. ${
+        datasetPerson.evidence
+      }`,
+      source: "curated dataset profile",
+    },
+  ];
+
+  if (datasetPerson.linkedinUrl) {
+    signals.push({
+      text: `${datasetPerson.name} has a LinkedIn profile tied to ${
+        datasetPerson.company
+      } and ${datasetPerson.title.toLowerCase()} work.`,
+      source: "curated LinkedIn profile",
+    });
+  }
+  if (datasetPerson.xUrl) {
+    signals.push({
+      text: `${datasetPerson.name} has an X profile connected to ${
+        datasetPerson.company
+      } and founder/operator topics.`,
+      source: "curated X profile",
+    });
+  }
+
+  return signals;
 }

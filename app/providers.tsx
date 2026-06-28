@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * Client providers. next-themes drives the intentional dark mode (default) with
- * a light "cream" fallback. `class` strategy => tokens in globals.css switch on
- * the `.dark` / `.light` class applied to <html>.
+ * Client providers. next-themes drives ColdReach-inspired light mode by default
+ * with a dark component system available via the toggle.
  */
 
 import { ThemeProvider } from "next-themes";
@@ -13,7 +12,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="dark"
+      defaultTheme="light"
       enableSystem={false}
       disableTransitionOnChange
     >
