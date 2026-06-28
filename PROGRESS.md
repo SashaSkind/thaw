@@ -41,3 +41,30 @@ EXIT=0
 Note: the email-present and email-absent checks are scoped to the queries
 designed to surface each (Q1 happy-path / Q3 CTOs), per the task's intent.
 Assertions were not loosened. `npm run typecheck` stays green.
+
+### Task 2 — Harden the ColdReach handoff — DONE
+
+`lib/coldreach.ts` `sendToColdReach` is now unbreakable: 5s `AbortController`
+timeout, try/catch around the fetch, returns a typed
+`{ ok: true, status } | { ok: false, reason, status? }` and never throws.
+Unset URL / non-200 / timeout / network error all degrade to a logged no-op.
+Return shape is not wired into any route, so no caller breakage.
+
+`scripts/test-handoff.ts` exercises (a) unset URL and (b) bogus URL:
+
+```
+Handoff degradation test
+
+Case (a): COLDREACH_DRAFT_URL unset
+  [PASS] did not throw — no throw
+  [PASS] returned ok:false — {"ok":false,"reason":"COLDREACH_DRAFT_URL not configured"}
+
+Case (b): bogus COLDREACH_DRAFT_URL
+  [PASS] did not throw — no throw
+  [PASS] returned ok:false — {"ok":false,"reason":"fetch failed"}
+
+ALL CHECKS PASSED
+EXIT=0
+```
+
+`npm run typecheck` green.
