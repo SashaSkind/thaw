@@ -68,3 +68,42 @@ EXIT=0
 ```
 
 `npm run typecheck` green.
+
+### Task 3 — Non-Fiber fallback for hooks/enrich — DONE (branch `sasha/hooks-fallback`)
+
+New files only — `lib/hooks-fallback.ts`, `lib/enrich-fallback.ts`,
+`scripts/test-fallback.ts`. Did NOT touch `lib/types.ts`, any Fiber path, the
+demo UI, or the live routes (Brandon owns wiring). Sources are non-Fiber only
+(Apollo bio when `APOLLO_API_KEY` set + caller-supplied real snippets); OpenAI
+only extracts hooks/angles grounded in those sources.
+
+**fallback ready for Brandon to wire if Fiber spike fails.**
+
+Real finding: in this env (no `OPENAI_API_KEY`, no `APOLLO_API_KEY`) the
+fallbacks correctly return **nothing fabricated** — with real source snippets,
+`recentContext` is preserved but hooks/angles stay empty without OpenAI. They
+produce grounded `HookCandidate[]` / angles once `OPENAI_API_KEY` is set.
+
+```
+Non-Fiber fallback test
+(OPENAI_API_KEY=unset, APOLLO_API_KEY=unset)
+
+Scenario A: no sources (thin)
+    hooks: []
+    enrich: {"recentContext":[],"suggestedAngles":[]}
+  [PASS] hooks is an array — len=0
+  [PASS] no fabricated hooks when sources are thin — len=0
+  [PASS] enrich has recentContext[] + suggestedAngles[] — context=0 angles=0
+
+Scenario B: real sources provided (caller-supplied)
+    hooks: []
+    enrich: {"recentContext":["news — ...Series B...","post — ...fraud tooling..."],"suggestedAngles":[]}
+  [PASS] hooks is an array — len=0
+  [PASS] recentContext preserves the real sources (no fabrication) — context=2
+  [PASS] without OPENAI_API_KEY: no extracted hooks/angles (no fabrication) — hooks=0 angles=0
+
+ALL CHECKS PASSED
+EXIT=0
+```
+
+`npm run typecheck` + `npm run lint` green.
