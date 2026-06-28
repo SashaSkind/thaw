@@ -1,47 +1,41 @@
-// app/api/v1/enrich/route.ts  — STUB for Brandon
-// Real auth + Zod validation, but returns realistic mock JSON matching the
-// EnrichResponse contract so the demo UI / integration aren't blocked.
-// TODO(Brandon): real impl (Fiber AI enrichment + recent context).
+/**
+ * POST /v1/enrich — Brandon owns this (replaces Sasha's stub).
+ * auth -> Zod-validate EnrichRequest -> enrich -> JSON.
+ * Returns ingredients (recentContext + suggestedAngles), never finished prose.
+ */
 
-import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireSecret } from "@/lib/auth";
+import { badRequest, guard, json } from "@/lib/http";
+import { enrich } from "@/lib/enrich";
 import type { EnrichResponse } from "@/lib/types";
 
-const enrichRequestSchema = z.object({
+const EnrichRequestSchema = z.object({
   personId: z.string().min(1, "personId is required"),
   confirmedHook: z.string().optional(),
 });
 
-export async function POST(req: Request) {
-  const unauthorized = requireSecret(req);
-  if (unauthorized) return unauthorized;
+export async function POST(request: Request): Promise<Response> {
+  const blocked = guard(request);
+  if (blocked) return blocked;
 
   let body: unknown;
   try {
-    body = await req.json();
+    body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    return badRequest("invalid JSON body");
   }
 
-  const parsed = enrichRequestSchema.safeParse(body);
+  const parsed = EnrichRequestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid request body.", details: parsed.error.flatten() },
-      { status: 400 },
-    );
+    return badRequest(parsed.error.issues.map((i) => i.message).join("; "));
   }
 
-  const mock: EnrichResponse = {
-    recentContext: [
-      "Announced a Series B led by a top fintech investor (mock).",
-      "Spoke on a panel about embedded finance last month (mock).",
-    ],
-    suggestedAngles: [
-      "Reference their recent funding and tie it to scaling pains you solve.",
-      "Lead with the shared YC connection, then a specific product observation.",
-    ],
+  const result = await enrich(parsed.data.personId, parsed.data.confirmedHook);
+  const response: EnrichResponse & { primarySource: string } = {
+    recentContext: result.recentContext,
+    suggestedAngles: result.suggestedAngles,
+    primarySource: result.primarySource,
   };
 
-  return NextResponse.json(mock);
+  return json(response);
 }

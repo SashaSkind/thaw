@@ -131,3 +131,79 @@ function slug(s: string): string {
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "");
 }
+
+// ---- Apollo bio/contact fallback (used by Brandon's hooks/enrich context) ----
+// PATTERN FROM coldreach/lib/apollo.ts — same defensive contract: no
+// APOLLO_API_KEY => { available: false } so callers fall back to the dataset.
+
+export interface ApolloBio {
+  headline?: string;
+  bio?: string;
+}
+
+export interface ApolloBioResult {
+  available: boolean;
+  data: ApolloBio | null;
+  reason?: string;
+}
+
+const APOLLO_BIO_TIMEOUT_MS = 8000;
+
+export function isApolloConfigured(): boolean {
+  return Boolean(process.env.APOLLO_API_KEY?.trim());
+}
+
+/** Pull a person's bio/headline as hook context. Never throws. */
+export async function getBio(person: {
+  name: string;
+  company?: string;
+  linkedinUrl?: string;
+}): Promise<ApolloBioResult> {
+  const key = process.env.APOLLO_API_KEY?.trim();
+  if (!key) {
+    return {
+      available: false,
+      data: null,
+      reason: "APOLLO_API_KEY not set — skipping Apollo bio.",
+    };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), APOLLO_BIO_TIMEOUT_MS);
+  try {
+    const response = await fetch("https://api.apollo.io/v1/people/match", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": key },
+      body: JSON.stringify({
+        name: person.name,
+        organization_name: person.company,
+        linkedin_url: person.linkedinUrl,
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return {
+        available: false,
+        data: null,
+        reason: `Apollo responded ${response.status}`,
+      };
+    }
+    const json = (await response.json()) as {
+      person?: { headline?: string; bio?: string };
+    };
+    return {
+      available: true,
+      data: { headline: json.person?.headline, bio: json.person?.bio },
+    };
+  } catch (error) {
+    return {
+      available: false,
+      data: null,
+      reason: `Apollo request failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}

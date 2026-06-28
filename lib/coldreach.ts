@@ -4,29 +4,29 @@
 // We hand a chosen prospect (+ optional confirmed hook) to ColdReach's external
 // draft endpoint. ColdReach does the 3-tone drafting and any (test-mode) send.
 // We NEVER touch Gmail and NEVER write the final email prose here.
-//
-// If ColdReach isn't configured/up, this degrades to a logged no-op so it can
-// never break our demo.
 
 import type { ProspectPerson } from "@/lib/types";
 
-export interface ColdReachHandoffResult {
-  delivered: boolean;
-  reason?: string;
-  status?: number;
-}
+const HANDOFF_TIMEOUT_MS = 5000;
 
+export type ColdReachHandoffResult =
+  | { ok: true; status: number }
+  | { ok: false; reason: string; status?: number };
+
+/**
+ * Hand a prospect to ColdReach. MUST NEVER throw or block the demo flow:
+ * unset URL / non-200 / timeout all degrade to a logged `{ ok: false, reason }` no-op.
+ */
 export async function sendToColdReach(
   prospect: ProspectPerson,
   hook?: string,
 ): Promise<ColdReachHandoffResult> {
   const url = process.env.COLDREACH_DRAFT_URL;
   if (!url) {
-    console.info(
-      "[coldreach] COLDREACH_DRAFT_URL not set — handoff is a no-op (would have sent prospect %s)",
-      prospect.id,
+    console.warn(
+      `[coldreach] COLDREACH_DRAFT_URL not set — handoff is a no-op (would have sent prospect ${prospect.id})`,
     );
-    return { delivered: false, reason: "COLDREACH_DRAFT_URL not configured" };
+    return { ok: false, reason: "COLDREACH_DRAFT_URL not configured" };
   }
 
   const payload = {
@@ -42,6 +42,9 @@ export async function sendToColdReach(
     hooks: hook ? [hook] : [],
   };
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HANDOFF_TIMEOUT_MS);
+
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -52,22 +55,25 @@ export async function sendToColdReach(
           : {}),
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(5000),
+      signal: controller.signal,
     });
 
     if (!res.ok) {
-      console.warn(`[coldreach] handoff non-OK: ${res.status}`);
-      return { delivered: false, reason: "non-OK response", status: res.status };
+      console.warn(`[coldreach] handoff non-OK response: ${res.status}`);
+      return { ok: false, reason: `non-OK response (${res.status})`, status: res.status };
     }
-    return { delivered: true, status: res.status };
+
+    return { ok: true, status: res.status };
   } catch (err) {
-    console.warn(
-      "[coldreach] handoff failed (degrading to no-op):",
-      err instanceof Error ? err.message : err,
-    );
-    return {
-      delivered: false,
-      reason: err instanceof Error ? err.message : "request failed",
-    };
+    const aborted = err instanceof Error && err.name === "AbortError";
+    const reason = aborted
+      ? `timed out after ${HANDOFF_TIMEOUT_MS}ms`
+      : err instanceof Error
+        ? err.message
+        : "request failed";
+    console.warn(`[coldreach] handoff failed (degrading to no-op): ${reason}`);
+    return { ok: false, reason };
+  } finally {
+    clearTimeout(timer);
   }
 }
