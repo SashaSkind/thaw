@@ -107,3 +107,30 @@ EXIT=0
 ```
 
 `npm run typecheck` + `npm run lint` green.
+
+---
+
+## Integration branch (`integration/final`) — reconcile PRs #7 + #8 + #9 + #10
+
+Cut from `main`. One commit per step. Target = v2 PRD architecture: stateless
+`/v1`, Fiber→fallback data layer, exactly ONE send path (Option C handoff), Thaw
+never sends.
+
+### Gate 1 — Verify #7's fallback — RESOLVED
+
+Inspected #7's `cohortProspects()` / `REAL_PEOPLE` (`lib/mock-data.ts`):
+
+1. **Static, no live calls?** YES — hardcoded in-repo array, returned
+   synchronously; no Fiber/Apollo at request time.
+2. **Preserves email mix (≥1 with email AND ≥1 without)?** NO — all 4 cohort
+   people are no-email (`channels.email=false`), and #7's live Fiber results also
+   set `email:false`. The email-channel demo would have no eligible prospect.
+
+**Decision:** Per Gate 1, since the cohort loses the email mix, KEEP the synthetic
+`lib/dataset/yc-fintech.ts` curated dataset as the always-present static floor
+(it has the email mix and cannot fail). Fallback chain in `narrow`:
+**live Fiber → #7 real cohort → curated yc-fintech dataset (floor)**, merged +
+deduped + ranked. The curated floor is always included so the on-stage email and
+no-email paths both work, per PRD ("use the curated dataset for the live demo
+path even if Fiber is wired in"). NOTE for Brandon: this re-introduces the
+synthetic dataset that #7 intentionally dropped — logged here, not silent.
