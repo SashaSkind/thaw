@@ -20,14 +20,22 @@ const stageEnum = z.enum([
   "unknown",
 ]);
 
+// NOTE: OpenAI structured outputs (strict json_schema) require every property
+// to be present in `required`, so we use `.nullable()` (required, may be null)
+// rather than `.optional()` (which OpenAI rejects). Empty/null arrays are
+// dropped when building the TargetingIntent below.
 const intentSchema = z.object({
-  industry: z.array(z.string()).optional(),
-  geography: z.array(z.string()).optional(),
-  stage: z.array(stageEnum).optional(),
-  companyType: z.array(z.string()).optional(),
-  roles: z.array(z.string()).optional(),
-  exclusions: z.array(z.string()).optional(),
+  industry: z.array(z.string()).nullable(),
+  geography: z.array(z.string()).nullable(),
+  stage: z.array(stageEnum).nullable(),
+  companyType: z.array(z.string()).nullable(),
+  roles: z.array(z.string()).nullable(),
+  exclusions: z.array(z.string()).nullable(),
 });
+
+function nonEmpty<T>(arr: T[] | null | undefined): T[] | undefined {
+  return arr && arr.length > 0 ? arr : undefined;
+}
 
 const SYSTEM_PROMPT =
   "Extract structured B2B prospecting criteria from the user's targeting goal. " +
@@ -51,7 +59,15 @@ export async function parseIntent(
           ? `Targeting goal: ${query}\n\nUser background (for context, may refine targeting): ${userBackground}`
           : `Targeting goal: ${query}`,
       });
-      return { rawQuery: query, ...object };
+      return {
+        rawQuery: query,
+        industry: nonEmpty(object.industry),
+        geography: nonEmpty(object.geography),
+        stage: nonEmpty(object.stage),
+        companyType: nonEmpty(object.companyType),
+        roles: nonEmpty(object.roles),
+        exclusions: nonEmpty(object.exclusions),
+      };
     } catch (err) {
       // Never throw to the caller because the model is down / misconfigured.
       console.warn(
